@@ -4,6 +4,7 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:iconsax/iconsax.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/constants/app_constants.dart';
 import '../../data/models/artwork_model.dart';
 import '../../controllers/artwork_controller.dart';
 
@@ -574,16 +575,18 @@ class ArtworkDetailsView extends StatelessWidget {
   }
 
   String _formatPrice(double price, String currency) {
-    if (currency == 'TZS') {
+    final symbol = AppConstants.currencySymbols[currency] ?? currency;
+
+    if (currency == AppConstants.defaultCurrency) {
       // Format Tanzanian Shillings with thousands separator
       final formatter = price.toStringAsFixed(0);
       final priceStr = formatter.replaceAllMapped(
         RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
         (Match m) => '${m[1]},',
       );
-      return 'TZS $priceStr';
+      return '$symbol $priceStr';
     } else {
-      return '$currency ${price.toStringAsFixed(0)}';
+      return '$symbol ${price.toStringAsFixed(2)}';
     }
   }
 

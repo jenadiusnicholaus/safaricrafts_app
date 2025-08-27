@@ -180,6 +180,29 @@ class Artwork {
   });
 
   factory Artwork.fromJson(Map<String, dynamic> json) {
+    // Handle main_image which might be a Map or String
+    String? mainImageUrl;
+    final mainImageData = json['main_image'];
+    print('🖼️ Cart Artwork.fromJson - main_image data: $mainImageData');
+    print(
+        '🖼️ Cart Artwork.fromJson - main_image type: ${mainImageData.runtimeType}');
+
+    if (mainImageData is Map<String, dynamic>) {
+      // If it's a Map, try to extract URL from common fields
+      print('🖼️ Cart Artwork.fromJson - extracting from Map');
+      mainImageUrl = mainImageData['thumbnail']?.toString() ??
+          mainImageData['file']?.toString() ??
+          mainImageData['url']?.toString();
+      print('🖼️ Cart Artwork.fromJson - extracted URL: $mainImageUrl');
+    } else if (mainImageData is String) {
+      print('🖼️ Cart Artwork.fromJson - using String directly');
+      mainImageUrl = mainImageData;
+    } else {
+      print('🖼️ Cart Artwork.fromJson - unknown image data type or null');
+    }
+
+    print('🖼️ Cart Artwork.fromJson - final mainImageUrl: $mainImageUrl');
+
     return Artwork(
       id: json['id']?.toString() ?? '',
       title: json['title'] ?? '',
@@ -188,7 +211,7 @@ class Artwork {
       categoryName: json['category_name'] ?? '',
       price: double.parse(json['price']?.toString() ?? '0'),
       currency: json['currency'] ?? 'USD',
-      mainImage: json['main_image'],
+      mainImage: mainImageUrl,
       isFeatured: json['is_featured'] ?? false,
       tribe: json['tribe'] ?? '',
       region: json['region'] ?? '',
@@ -196,6 +219,11 @@ class Artwork {
       viewCount: json['view_count'] ?? 0,
       likeCount: json['like_count'] ?? 0,
     );
+  }
+
+  // Helper method to get the image URL, similar to the main artwork model
+  String getImageUrl() {
+    return mainImage ?? '';
   }
 
   Map<String, dynamic> toJson() {

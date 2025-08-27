@@ -1,100 +1,112 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart';
 import 'package:get/get.dart';
 import 'package:get_storage/get_storage.dart';
 import '../data/models/cart_model.dart';
-import '../data/models/artwork_model.dart';
 import '../data/providers/cart_provider.dart';
 import '../core/theme/app_colors.dart';
-import '../services/redirect_service.dart';
+import '../core/constants/app_constants.dart';
 import 'auth_controller.dart';
 
-// Local cart item model for guest users
+// Local cart item for guest users
 class LocalCartItem {
-  final String artworkId;
+  final String artworkId; // Changed from int to String to match UUID format
+  final String title;
+  final String imageUrl;
+  final double price;
   final int quantity;
-  final double unitPrice;
-  final String artworkTitle;
-  final String artworkImage;
-  final String artistName;
+  final String currency; // Added currency field
 
   LocalCartItem({
     required this.artworkId,
+    required this.title,
+    required this.imageUrl,
+    required this.price,
     required this.quantity,
-    required this.unitPrice,
-    required this.artworkTitle,
-    required this.artworkImage,
-    required this.artistName,
+    this.currency =
+        AppConstants.defaultCurrency, // Default to app's primary currency
   });
 
-  Map<String, dynamic> toJson() => {
-        'artworkId': artworkId,
-        'quantity': quantity,
-        'unitPrice': unitPrice,
-        'artworkTitle': artworkTitle,
-        'artworkImage': artworkImage,
-        'artistName': artistName,
-      };
-
   factory LocalCartItem.fromJson(Map<String, dynamic> json) => LocalCartItem(
-        artworkId: json['artworkId'],
+        artworkId: json['artwork_id'].toString(), // Ensure it's a string
+        title: json['title'],
+        imageUrl: json['image_url'],
+        price: double.parse(json['price'].toString()),
         quantity: json['quantity'],
-        unitPrice: json['unitPrice'].toDouble(),
-        artworkTitle: json['artworkTitle'],
-        artworkImage: json['artworkImage'],
-        artistName: json['artistName'],
+        currency: json['currency'] ?? AppConstants.defaultCurrency,
       );
+
+  Map<String, dynamic> toJson() => {
+        'artwork_id': artworkId,
+        'title': title,
+        'image_url': imageUrl,
+        'price': price,
+        'quantity': quantity,
+        'currency': currency,
+      };
 }
 
 class CartController extends GetxController {
   final CartProvider _cartProvider = CartProvider();
-  final GetStorage _storage = GetStorage();
   late final AuthController _authController;
+  final GetStorage _storage = GetStorage();
 
   // Observable variables
   final Rx<Cart?> cart = Rx<Cart?>(null);
   final RxList<LocalCartItem> localCart = <LocalCartItem>[].obs;
   final RxBool isLoading = false.obs;
   final RxString error = ''.obs;
-  final RxBool isGuest = true.obs;
+
+  // Computed properties
+  bool get isGuest => !_authController.isAuthenticated.value;
+
+  int get itemCount {
+    if (isGuest) {
+      return localCart.fold(0, (sum, item) => sum + item.quantity);
+    }
+    return cart.value?.totalItems ?? 0;
+  }
+
+  double get subtotal {
+    if (isGuest) {
+      return localCart.fold(
+          0.0, (sum, item) => sum + (item.price * item.quantity));
+    }
+    return cart.value?.totalAmount ?? 0.0;
+  }
+
+  double get tax => subtotal * 0.1; // 10% tax
+  double get total => subtotal + tax;
 
   @override
   void onInit() {
     super.onInit();
     _authController = Get.find<AuthController>();
+    _loadLocalCart();
     _initializeCart();
 
     // Listen to auth state changes
     ever(_authController.isAuthenticated, (isAuth) {
       if (isAuth) {
-        _syncLocalCartToServer();
+        loadCart();
+      } else {
+        // Clear API cart when logging out
+        cart.value = null;
       }
     });
   }
 
-  // Initialize cart based on authentication status
-  void _initializeCart() {
-    if (_authController.isAuthenticated.value) {
-      isGuest.value = false;
-      loadCart();
-    } else {
-      isGuest.value = true;
-      _loadLocalCart();
-    }
-  }
-
   // Load local cart from storage
   void _loadLocalCart() {
-    try {
-      final localCartData = _storage.read('local_cart');
-      if (localCartData != null) {
-        final List<dynamic> cartList = localCartData;
+    final cartData = _storage.read('local_cart');
+    if (cartData != null) {
+      try {
+        final cartList = List<Map<String, dynamic>>.from(cartData);
         localCart.value =
             cartList.map((item) => LocalCartItem.fromJson(item)).toList();
+      } catch (e) {
+        print('Error loading local cart: $e');
+        localCart.clear();
       }
-    } catch (e) {
-      print('Error loading local cart: $e');
-      localCart.clear();
     }
   }
 
@@ -104,44 +116,17 @@ class CartController extends GetxController {
         'local_cart', localCart.map((item) => item.toJson()).toList());
   }
 
-  // Sync local cart to server when user logs in
-  Future<void> _syncLocalCartToServer() async {
-    if (localCart.isEmpty) return;
-
-    try {
-      isLoading.value = true;
-
-      // Add each local cart item to the server cart
-      for (final localItem in localCart.toList()) {
-        await _cartProvider.addToCart(localItem.artworkId,
-            quantity: localItem.quantity);
-      }
-
-      // Clear local cart after successful sync
-      localCart.clear();
-      _storage.remove('local_cart');
-
-      // Load the updated server cart
-      await loadCart();
-
-      Get.snackbar(
-        'Success',
-        'Your cart items have been synced successfully!',
-        snackPosition: SnackPosition.BOTTOM,
-      );
-    } catch (e) {
-      Get.snackbar(
-        'Warning',
-        'Some cart items couldn\'t be synced. Please add them manually.',
-        snackPosition: SnackPosition.BOTTOM,
-      );
-    } finally {
-      isLoading.value = false;
+  // Initialize cart based on authentication status
+  void _initializeCart() {
+    if (_authController.isAuthenticated.value) {
+      loadCart();
     }
   }
 
-  // Load cart data
+  // Load cart data from server
   Future<void> loadCart() async {
+    if (!_authController.isAuthenticated.value) return;
+
     try {
       isLoading.value = true;
       error.value = '';
@@ -158,59 +143,197 @@ class CartController extends GetxController {
     }
   }
 
-  // Add item to cart (handles both authenticated and guest users)
-  Future<void> addToCart(String artworkId, {int quantity = 1}) async {
+  // Add item to cart (now supports both guest and authenticated users)
+  Future<void> addToCart(
+    String artworkId, {
+    int quantity = 1,
+    String? title,
+    String? imageUrl,
+    double? price,
+    String? currency, // Added currency parameter
+  }) async {
+    print('🛒 addToCart called with: artworkId=$artworkId, quantity=$quantity');
+    print('🛒 isGuest: $isGuest');
+    print(
+        '🛒 title: $title, imageUrl: $imageUrl, price: $price, currency: $currency');
+    print('🛒 imageUrl length: ${imageUrl?.length ?? 0}');
+    print('🛒 imageUrl isEmpty: ${imageUrl?.isEmpty ?? true}');
+
+    if (isGuest) {
+      // Guest user - add to local cart
+      print('🛒 Adding to guest cart');
+      if (title == null || imageUrl == null || price == null) {
+        print('🛒 Missing artwork information for guest cart');
+        print('🛒 title is null: ${title == null}');
+        print('🛒 imageUrl is null: ${imageUrl == null}');
+        print('🛒 price is null: ${price == null}');
+        Get.snackbar(
+          'Error',
+          'Missing artwork information for guest cart',
+          snackPosition: SnackPosition.BOTTOM,
+          backgroundColor: Colors.red,
+          colorText: Colors.white,
+        );
+        return;
+      }
+
+      try {
+        addToLocalCart(
+          artworkId: artworkId, // Now artworkId is already a string
+          title: title,
+          imageUrl: imageUrl,
+          price: price,
+          quantity: quantity,
+          currency: currency, // Pass currency to local cart
+        );
+        print('🛒 Successfully added to local cart');
+      } catch (e) {
+        print('🛒 Error adding to local cart: $e');
+        Get.snackbar(
+          'Error',
+          'Failed to add to local cart: $e',
+          snackPosition: SnackPosition.BOTTOM,
+          backgroundColor: Colors.red,
+          colorText: Colors.white,
+        );
+      }
+      return;
+    }
+    print('🛒 Adding to server cart');
     try {
       isLoading.value = true;
       error.value = '';
 
-      if (_authController.isAuthenticated.value) {
-        // Authenticated user - add to server cart
-        final cartItem = await _cartProvider.addToCart(artworkId, quantity: quantity);
-        
-        // Update cart state optimistically
-        if (cart.value != null) {
-          // Check if item already exists
-          final existingItemIndex = cart.value!.items.indexWhere(
-            (item) => item.artwork.id == artworkId,
-          );
-          
-          if (existingItemIndex != -1) {
-            // Update existing item
-            final updatedItems = List<CartItem>.from(cart.value!.items);
-            updatedItems[existingItemIndex] = cartItem;
-            cart.value = cart.value!.copyWith(
-              items: updatedItems,
-              totalItems: updatedItems.fold(0, (sum, item) => sum + item.quantity),
-              totalAmount: updatedItems.fold(0.0, (sum, item) => sum + item.totalPrice),
-            );
-          } else {
-            // Add new item
-            final updatedItems = List<CartItem>.from(cart.value!.items)..add(cartItem);
-            cart.value = cart.value!.copyWith(
-              items: updatedItems,
-              totalItems: updatedItems.fold(0, (sum, item) => sum + item.quantity),
-              totalAmount: updatedItems.fold(0.0, (sum, item) => sum + item.totalPrice),
-            );
-          }
+      // Add to server cart
+      final cartItem =
+          await _cartProvider.addToCart(artworkId, quantity: quantity);
+      print('🛒 Server response: ${cartItem.toString()}');
+
+      // Optimistically update the cart state
+      if (cart.value != null) {
+        final existingItemIndex = cart.value!.items.indexWhere(
+          (item) => item.artwork.id == artworkId,
+        );
+
+        List<CartItem> updatedItems;
+        if (existingItemIndex != -1) {
+          // Update existing item
+          updatedItems = List<CartItem>.from(cart.value!.items);
+          updatedItems[existingItemIndex] = cartItem;
         } else {
-          // Reload cart if we don't have current state
-          await loadCart();
+          // Add new item
+          updatedItems = List<CartItem>.from(cart.value!.items)..add(cartItem);
         }
-        
-        Get.snackbar(
-          'Success',
-          'Item added to cart!',
-          snackPosition: SnackPosition.BOTTOM,
-          backgroundColor: AppColors.accent,
-          colorText: Colors.white,
+
+        cart.value = cart.value!.copyWith(
+          items: updatedItems,
+          totalItems:
+              updatedItems.fold<int>(0, (sum, item) => sum + item.quantity),
+          totalAmount: updatedItems.fold<double>(
+              0.0, (sum, item) => sum + item.totalPrice),
         );
       } else {
-        // Guest user - add to local cart
-        await _addToLocalCart(artworkId, quantity);
+        // Reload cart if we don't have current state
+        await loadCart();
       }
+
+      Get.snackbar(
+        'Success',
+        'Item added to cart!',
+        snackPosition: SnackPosition.BOTTOM,
+        backgroundColor: AppColors.accent,
+        colorText: Colors.white,
+      );
     } catch (e) {
       error.value = e.toString();
+      print('🛒 Add to cart error: $e');
+      print('🛒 Error type: ${e.runtimeType}');
+      print('🛒 Is guest: $isGuest');
+      print('🛒 Artwork ID: $artworkId');
+      print('🛒 Title: $title, ImageUrl: $imageUrl, Price: $price');
+
+      String errorMessage = 'Failed to add item to cart';
+
+      // Provide more specific error messages
+      if (e.toString().contains('401') ||
+          e.toString().contains('Unauthorized')) {
+        errorMessage = 'Please log in to add items to cart';
+      } else if (e.toString().contains('404') ||
+          e.toString().contains('Not Found')) {
+        errorMessage = 'Artwork not found';
+      } else if (e.toString().contains('network') ||
+          e.toString().contains('connection')) {
+        errorMessage = 'Network error. Please check your connection';
+      } else if (e.toString().contains('timeout')) {
+        errorMessage = 'Request timeout. Please try again';
+      }
+
+      Get.snackbar(
+        'Error',
+        errorMessage,
+        snackPosition: SnackPosition.BOTTOM,
+        backgroundColor: Colors.red,
+        colorText: Colors.white,
+        duration: const Duration(seconds: 4),
+      );
+    } finally {
+      isLoading.value = false;
+    }
+  }
+
+  // Alternative method to add item using item ID endpoint
+  Future<void> addToCartWithItemId(
+    String artworkId,
+    int itemId, {
+    int quantity = 1,
+  }) async {
+    if (isGuest) {
+      throw Exception('This method is only for authenticated users');
+    }
+
+    try {
+      isLoading.value = true;
+      error.value = '';
+
+      print(
+          '🛒 Adding to cart with item ID: artworkId=$artworkId, itemId=$itemId');
+
+      final cartItem = await _cartProvider.addToCartWithId(artworkId, itemId,
+          quantity: quantity);
+
+      // Update local state
+      if (cart.value != null) {
+        final existingItemIndex = cart.value!.items.indexWhere(
+          (item) => item.id == itemId,
+        );
+
+        List<CartItem> updatedItems;
+        if (existingItemIndex != -1) {
+          updatedItems = List<CartItem>.from(cart.value!.items);
+          updatedItems[existingItemIndex] = cartItem;
+        } else {
+          updatedItems = List<CartItem>.from(cart.value!.items)..add(cartItem);
+        }
+
+        cart.value = cart.value!.copyWith(
+          items: updatedItems,
+          totalItems:
+              updatedItems.fold<int>(0, (sum, item) => sum + item.quantity),
+          totalAmount: updatedItems.fold<double>(
+              0.0, (sum, item) => sum + item.totalPrice),
+        );
+      }
+
+      Get.snackbar(
+        'Success',
+        'Item added to cart!',
+        snackPosition: SnackPosition.BOTTOM,
+        backgroundColor: AppColors.accent,
+        colorText: Colors.white,
+      );
+    } catch (e) {
+      error.value = e.toString();
+      print('🛒 Error adding to cart with item ID: $e');
       Get.snackbar(
         'Error',
         'Failed to add item to cart',
@@ -223,50 +346,115 @@ class CartController extends GetxController {
     }
   }
 
-  // Add to local cart for guest users
-  Future<void> _addToLocalCart(String artworkId, int quantity) async {
-    // This would require artwork data to create local cart item
-    // For now, we'll redirect to login
-    Get.snackbar(
-      'Login Required',
-      'Please log in to add items to your cart',
-      snackPosition: SnackPosition.BOTTOM,
-      backgroundColor: AppColors.primary,
-      colorText: Colors.white,
-      mainButton: TextButton(
-        onPressed: () => RedirectService.toLogin(),
-        child: Text('Login', style: TextStyle(color: Colors.white)),
-      ),
-    );
-  }
-
   // Update cart item quantity
   Future<void> updateCartItemQuantity(int itemId, int quantity) async {
+    try {
+      // Get the current item for optimistic update
+      CartItem? currentItem;
+      if (cart.value != null) {
+        currentItem = cart.value!.items.firstWhere((item) => item.id == itemId);
+      }
+
+      if (currentItem == null) return;
+
+      // 1. OPTIMISTIC UPDATE - Update UI immediately
+      final optimisticItems = cart.value!.items.map((item) {
+        if (item.id == itemId) {
+          return item.copyWith(
+            quantity: quantity,
+            totalPrice: item.artwork.price * quantity,
+          );
+        }
+        return item;
+      }).toList();
+
+      // Update UI immediately (optimistic)
+      cart.value = cart.value!.copyWith(
+        items: optimisticItems,
+        totalItems:
+            optimisticItems.fold<int>(0, (sum, item) => sum + item.quantity),
+        totalAmount: optimisticItems.fold<double>(
+            0.0, (sum, item) => sum + item.totalPrice),
+      );
+
+      print(
+          '🛒 Optimistic update applied for itemId=$itemId, quantity=$quantity');
+
+      // 2. SERVER UPDATE - Call API in background
+      final updatedCartItem =
+          await _cartProvider.updateCartItem(itemId, quantity);
+      print('🛒 Server update completed: ${updatedCartItem.id}');
+
+      // 3. SYNC UPDATE - Ensure UI matches server response
+      if (cart.value != null) {
+        final syncedItems = cart.value!.items.map((item) {
+          if (item.id == itemId) {
+            return updatedCartItem; // Use server response
+          }
+          return item;
+        }).toList();
+
+        cart.value = cart.value!.copyWith(
+          items: syncedItems,
+          totalItems:
+              syncedItems.fold<int>(0, (sum, item) => sum + item.quantity),
+          totalAmount: syncedItems.fold<double>(
+              0.0, (sum, item) => sum + item.totalPrice),
+        );
+      }
+
+      print('🛒 Cart synced with server successfully');
+    } catch (e) {
+      // 4. ROLLBACK - Revert optimistic update on error
+      print('🛒 Error updating cart item, rolling back: $e');
+
+      // Revert to previous state
+      await loadCart(); // Refresh from server to get accurate state
+
+      Get.snackbar(
+        'Error',
+        'Failed to update cart. Please try again.',
+        snackPosition: SnackPosition.BOTTOM,
+        backgroundColor: AppColors.error,
+        colorText: Colors.white,
+      );
+    }
+  }
+
+  // Alternative method to update cart item using item ID endpoint
+  Future<void> updateCartItemWithId(int itemId, int quantity) async {
+    if (isGuest) {
+      throw Exception('This method is only for authenticated users');
+    }
+
     try {
       isLoading.value = true;
       error.value = '';
 
-      await _cartProvider.updateCartItem(itemId, quantity);
-      
-      // Update local state optimistically
+      print(
+          '🛒 Updating cart item with ID: itemId=$itemId, quantity=$quantity');
+
+      final updatedCartItem =
+          await _cartProvider.updateCartItemWithId(itemId, quantity);
+
+      // Update local state
       if (cart.value != null) {
         final updatedItems = cart.value!.items.map((item) {
           if (item.id == itemId) {
-            return item.copyWith(
-              quantity: quantity,
-              totalPrice: item.unitPrice * quantity,
-            );
+            return updatedCartItem;
           }
           return item;
         }).toList();
-        
+
         cart.value = cart.value!.copyWith(
           items: updatedItems,
-          totalItems: updatedItems.fold(0, (sum, item) => sum + item.quantity),
-          totalAmount: updatedItems.fold(0.0, (sum, item) => sum + item.totalPrice),
+          totalItems:
+              updatedItems.fold<int>(0, (sum, item) => sum + item.quantity),
+          totalAmount: updatedItems.fold<double>(
+              0.0, (sum, item) => sum + item.totalPrice),
         );
       }
-      
+
       Get.snackbar(
         'Success',
         'Cart updated!',
@@ -276,6 +464,7 @@ class CartController extends GetxController {
       );
     } catch (e) {
       error.value = e.toString();
+      print('🛒 Error updating cart item with ID: $e');
       Get.snackbar(
         'Error',
         'Failed to update cart item',
@@ -283,32 +472,52 @@ class CartController extends GetxController {
         backgroundColor: Colors.red,
         colorText: Colors.white,
       );
-      // Reload cart to get correct state
-      await loadCart();
+      await loadCart(); // Reload to get correct state
     } finally {
       isLoading.value = false;
     }
   }
 
   // Remove item from cart
-  Future<void> removeFromCart(int itemId) async {
+  Future<void> removeFromCart(dynamic itemId) async {
+    if (isGuest) {
+      // For guest users, itemId should be the artwork ID (string)
+      final artworkId = itemId.toString(); // Ensure it's a string
+      localCart.removeWhere((item) => item.artworkId == artworkId);
+      _saveLocalCart();
+
+      Get.snackbar(
+        'Success',
+        'Item removed from cart!',
+        snackPosition: SnackPosition.BOTTOM,
+        backgroundColor: AppColors.accent,
+        colorText: Colors.white,
+      );
+      return;
+    }
+
     try {
       isLoading.value = true;
       error.value = '';
 
-      await _cartProvider.removeFromCart(itemId);
-      
-      // Update local state optimistically
+      // For authenticated users, itemId should be the cart item ID (int)
+      final cartItemId = itemId as int;
+      await _cartProvider.removeFromCart(cartItemId);
+
+      // Optimistically update local state
       if (cart.value != null) {
-        final updatedItems = cart.value!.items.where((item) => item.id != itemId).toList();
-        
+        final updatedItems =
+            cart.value!.items.where((item) => item.id != itemId).toList();
+
         cart.value = cart.value!.copyWith(
           items: updatedItems,
-          totalItems: updatedItems.fold(0, (sum, item) => sum + item.quantity),
-          totalAmount: updatedItems.fold(0.0, (sum, item) => sum + item.totalPrice),
+          totalItems:
+              updatedItems.fold<int>(0, (sum, item) => sum + item.quantity),
+          totalAmount: updatedItems.fold<double>(
+              0.0, (sum, item) => sum + item.totalPrice),
         );
       }
-      
+
       Get.snackbar(
         'Success',
         'Item removed from cart!',
@@ -332,21 +541,86 @@ class CartController extends GetxController {
     }
   }
 
+  // Alternative method to remove cart item using item ID endpoint
+  Future<void> removeFromCartWithId(int itemId) async {
+    if (isGuest) {
+      throw Exception('This method is only for authenticated users');
+    }
+
+    try {
+      isLoading.value = true;
+      error.value = '';
+
+      print('🛒 Removing cart item with ID: itemId=$itemId');
+
+      await _cartProvider.removeFromCartWithId(itemId);
+
+      // Update local state
+      if (cart.value != null) {
+        final updatedItems =
+            cart.value!.items.where((item) => item.id != itemId).toList();
+
+        cart.value = cart.value!.copyWith(
+          items: updatedItems,
+          totalItems:
+              updatedItems.fold<int>(0, (sum, item) => sum + item.quantity),
+          totalAmount: updatedItems.fold<double>(
+              0.0, (sum, item) => sum + item.totalPrice),
+        );
+      }
+
+      Get.snackbar(
+        'Success',
+        'Item removed from cart!',
+        snackPosition: SnackPosition.BOTTOM,
+        backgroundColor: AppColors.accent,
+        colorText: Colors.white,
+      );
+    } catch (e) {
+      error.value = e.toString();
+      Get.snackbar(
+        'Error',
+        'Failed to remove item from cart',
+        snackPosition: SnackPosition.BOTTOM,
+        backgroundColor: Colors.red,
+        colorText: Colors.white,
+      );
+      await loadCart(); // Reload to get correct state
+    } finally {
+      isLoading.value = false;
+    }
+  }
+
   // Clear entire cart
   Future<void> clearCart() async {
+    if (isGuest) {
+      // Clear local cart
+      localCart.clear();
+      _saveLocalCart();
+
+      Get.snackbar(
+        'Success',
+        'Cart cleared!',
+        snackPosition: SnackPosition.BOTTOM,
+        backgroundColor: AppColors.accent,
+        colorText: Colors.white,
+      );
+      return;
+    }
+
     try {
       isLoading.value = true;
       error.value = '';
 
       await _cartProvider.clearCart();
-      
+
       // Update local state
       cart.value = cart.value?.copyWith(
         items: [],
         totalItems: 0,
         totalAmount: 0.0,
       );
-      
+
       Get.snackbar(
         'Success',
         'Cart cleared!',
@@ -386,7 +660,11 @@ class CartController extends GetxController {
 
   // Get cart currency
   String get cartCurrency {
-    return cart.value?.currency ?? 'TZS';
+    if (isGuest) {
+      // For guest users, use the default currency from app settings
+      return AppConstants.defaultCurrency;
+    }
+    return cart.value?.currency ?? AppConstants.defaultCurrency;
   }
 
   // Get cart item by artwork ID
@@ -403,435 +681,296 @@ class CartController extends GetxController {
 
   // Format price with currency
   String formatPrice(double price, String currency) {
-    if (currency == 'TZS') {
+    final symbol = AppConstants.currencySymbols[currency] ?? currency;
+
+    // Use whole number formatting for TZS (Tanzanian Shilling)
+    if (currency == AppConstants.defaultCurrency) {
       final formatter = price.toStringAsFixed(0);
       final priceStr = formatter.replaceAllMapped(
         RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
         (Match m) => '${m[1]},',
       );
-      return 'TZS $priceStr';
+      return '$symbol $priceStr';
     } else {
-      return '$currency ${price.toStringAsFixed(0)}';
-    }
-  }
-    } catch (e) {
-      error.value = e.toString();
-      Get.snackbar(
-        'Error',
-        'Failed to load cart: $e',
-        snackPosition: SnackPosition.BOTTOM,
-      );
-    } finally {
-      isLoading.value = false;
+      return '$symbol ${price.toStringAsFixed(2)}';
     }
   }
 
-  // Add item to cart (works for both guest and authenticated users)
-  Future<void> addToCart(String artworkId,
-      {int quantity = 1, ArtworkList? artwork}) async {
-    try {
-      isLoading.value = true;
-      error.value = '';
-
-      if (isGuest.value || !_authController.isAuthenticated.value) {
-        // Guest user - add to local cart
-        await _addToLocalCart(artworkId, quantity: quantity, artwork: artwork);
-      } else {
-        // Authenticated user - add to server cart
-        await _cartProvider.addToCart(artworkId, quantity: quantity);
-        await loadCart(); // Refresh cart after adding item
-      }
-
-      Get.snackbar(
-        'Success',
-        'Item added to cart successfully',
-        snackPosition: SnackPosition.BOTTOM,
-      );
-    } catch (e) {
-      error.value = e.toString();
-      Get.snackbar(
-        'Error',
-        'Failed to add item to cart: $e',
-        snackPosition: SnackPosition.BOTTOM,
-      );
-    } finally {
-      isLoading.value = false;
-    }
-  }
-
-  // Add item to local cart for guest users
-  Future<void> _addToLocalCart(String artworkId,
-      {int quantity = 1, ArtworkList? artwork}) async {
-    // Check if item already exists in local cart
-    final existingIndex =
-        localCart.indexWhere((item) => item.artworkId == artworkId);
-
-    if (existingIndex >= 0) {
-      // Update quantity if item exists
-      final existingItem = localCart[existingIndex];
-      localCart[existingIndex] = LocalCartItem(
-        artworkId: existingItem.artworkId,
-        quantity: existingItem.quantity + quantity,
-        unitPrice: existingItem.unitPrice,
-        artworkTitle: existingItem.artworkTitle,
-        artworkImage: existingItem.artworkImage,
-        artistName: existingItem.artistName,
-      );
-    } else {
-      // Add new item to local cart
-      if (artwork != null) {
-        localCart.add(LocalCartItem(
-          artworkId: artworkId,
-          quantity: quantity,
-          unitPrice: artwork.price,
-          artworkTitle: artwork.title,
-          artworkImage: artwork.getImageUrl(),
-          artistName: artwork.artistName,
-        ));
-      } else {
-        throw Exception('Artwork details required for guest cart');
-      }
-    }
-
-    _saveLocalCart();
-  }
-
-  // Update item quantity
-  Future<void> updateItemQuantity(int itemId, int quantity) async {
-    try {
-      isLoading.value = true;
-      error.value = '';
-
-      if (isGuest.value || !_authController.isAuthenticated.value) {
-        // For local cart, itemId is actually the index
-        await _updateLocalCartQuantity(itemId, quantity);
-      } else {
-        await _cartProvider.updateCartItem(itemId, quantity);
-        await loadCart(); // Refresh cart after updating
-      }
-
-      Get.snackbar(
-        'Success',
-        'Quantity updated successfully',
-        snackPosition: SnackPosition.BOTTOM,
-      );
-    } catch (e) {
-      error.value = e.toString();
-      Get.snackbar(
-        'Error',
-        'Failed to update quantity: $e',
-        snackPosition: SnackPosition.BOTTOM,
-      );
-    } finally {
-      isLoading.value = false;
-    }
-  }
-
-  // Update local cart item quantity
-  Future<void> _updateLocalCartQuantity(int index, int quantity) async {
-    if (index >= 0 && index < localCart.length) {
-      if (quantity <= 0) {
-        localCart.removeAt(index);
-      } else {
-        final item = localCart[index];
-        localCart[index] = LocalCartItem(
-          artworkId: item.artworkId,
-          quantity: quantity,
-          unitPrice: item.unitPrice,
-          artworkTitle: item.artworkTitle,
-          artworkImage: item.artworkImage,
-          artistName: item.artistName,
-        );
-      }
-      _saveLocalCart();
-    }
-  }
-
-  // Remove item from cart
-  Future<void> removeFromCart(int itemId) async {
-    try {
-      isLoading.value = true;
-      error.value = '';
-
-      if (isGuest.value || !_authController.isAuthenticated.value) {
-        // For local cart, itemId is actually the index
-        await _removeFromLocalCart(itemId);
-      } else {
-        await _cartProvider.removeFromCart(itemId);
-        await loadCart(); // Refresh cart after removing item
-      }
-
-      Get.snackbar(
-        'Success',
-        'Item removed from cart',
-        snackPosition: SnackPosition.BOTTOM,
-      );
-    } catch (e) {
-      error.value = e.toString();
-      Get.snackbar(
-        'Error',
-        'Failed to remove item: $e',
-        snackPosition: SnackPosition.BOTTOM,
-      );
-    } finally {
-      isLoading.value = false;
-    }
-  }
-
-  // Remove item from local cart
-  Future<void> _removeFromLocalCart(int index) async {
-    if (index >= 0 && index < localCart.length) {
-      localCart.removeAt(index);
-      _saveLocalCart();
-    }
-  }
-
-  // Clear entire cart
-  Future<void> clearCart() async {
-    try {
-      isLoading.value = true;
-      error.value = '';
-
-      if (isGuest.value || !_authController.isAuthenticated.value) {
-        localCart.clear();
-        _storage.remove('local_cart');
-      } else {
-        await _cartProvider.clearCart();
-        await loadCart(); // Refresh cart after clearing
-      }
-
-      Get.snackbar(
-        'Success',
-        'Cart cleared successfully',
-        snackPosition: SnackPosition.BOTTOM,
-      );
-    } catch (e) {
-      error.value = e.toString();
-      Get.snackbar(
-        'Error',
-        'Failed to clear cart: $e',
-        snackPosition: SnackPosition.BOTTOM,
-      );
-    } finally {
-      isLoading.value = false;
-    }
-  }
-
-  // Computed properties
-  int get itemCount {
-    if (isGuest.value || !_authController.isAuthenticated.value) {
-      return localCart.fold(0, (sum, item) => sum + item.quantity);
-    }
-    if (cart.value == null) return 0;
-    return cart.value!.items.fold(0, (sum, item) => sum + item.quantity);
-  }
-
-  double get subtotal {
-    if (isGuest.value || !_authController.isAuthenticated.value) {
-      return localCart.fold(
-          0.0, (sum, item) => sum + (item.unitPrice * item.quantity));
-    }
-    if (cart.value == null) return 0.0;
-    return cart.value!.items.fold(0.0, (sum, item) {
-      return sum + item.totalPrice;
-    });
-  }
-
-  double get total {
-    if (isGuest.value || !_authController.isAuthenticated.value) {
-      return subtotal + shipping + tax;
-    }
-    if (cart.value == null) return 0.0;
-    return cart.value!.totalAmount;
-  }
-
-  double get shipping {
-    // Free shipping for now
-    return 0.0;
-  }
-
-  double get tax {
-    // Calculate tax as 8% of subtotal
-    return subtotal * 0.08;
+  // Refresh cart (reload from server)
+  Future<void> refreshCart() async {
+    await loadCart();
   }
 
   // Check if cart is empty
   bool get isEmpty {
-    if (isGuest.value || !_authController.isAuthenticated.value) {
-      return localCart.isEmpty;
-    }
-    return cart.value == null || cart.value!.items.isEmpty;
+    return cart.value?.isEmpty ?? true;
   }
 
-  // Check if artwork is in cart
-  bool isInCart(String artworkId) {
-    if (isGuest.value || !_authController.isAuthenticated.value) {
-      return localCart.any((item) => item.artworkId == artworkId);
-    }
-    return getItemByArtworkId(artworkId) != null;
+  // Check if cart is not empty
+  bool get isNotEmpty {
+    return !isEmpty;
   }
 
-  // Get quantity of specific artwork in cart
-  int getQuantityInCart(String artworkId) {
-    if (isGuest.value || !_authController.isAuthenticated.value) {
-      final item =
-          localCart.firstWhereOrNull((item) => item.artworkId == artworkId);
-      return item?.quantity ?? 0;
+  // Update item quantity (for guest users with artwork ID)
+  Future<void> updateLocalItemQuantity(
+      String artworkId, int newQuantity) async {
+    if (!isGuest) {
+      throw Exception('This method is only for guest users');
     }
-    final item = getItemByArtworkId(artworkId);
-    return item?.quantity ?? 0;
-  }
 
-  // Get cart item by artwork ID (for authenticated users)
-  CartItem? getItemByArtworkId(String artworkId) {
-    if (cart.value == null) return null;
+    // Find the item index
+    final index = localCart.indexWhere((item) => item.artworkId == artworkId);
+    if (index == -1) return;
+
+    // Store original item for potential rollback
+    final originalItem = localCart[index];
 
     try {
-      return cart.value!.items.firstWhere(
-        (item) => item.artwork.id == artworkId,
-      );
-    } catch (e) {
-      return null;
-    }
-  }
-
-  // Increment item quantity
-  Future<void> incrementQuantity(int itemId) async {
-    if (isGuest.value || !_authController.isAuthenticated.value) {
-      // For local cart, itemId is the index
-      if (itemId >= 0 && itemId < localCart.length) {
-        await _updateLocalCartQuantity(itemId, localCart[itemId].quantity + 1);
-      }
-    } else {
-      final item = cart.value?.items.firstWhere((item) => item.id == itemId);
-      if (item != null) {
-        await updateItemQuantity(itemId, item.quantity + 1);
-      }
-    }
-  }
-
-  // Decrement item quantity
-  Future<void> decrementQuantity(int itemId) async {
-    if (isGuest.value || !_authController.isAuthenticated.value) {
-      // For local cart, itemId is the index
-      if (itemId >= 0 && itemId < localCart.length) {
-        final currentQuantity = localCart[itemId].quantity;
-        if (currentQuantity > 1) {
-          await _updateLocalCartQuantity(itemId, currentQuantity - 1);
-        } else {
-          await _removeFromLocalCart(itemId);
-        }
-      }
-    } else {
-      final item = cart.value?.items.firstWhere((item) => item.id == itemId);
-      if (item != null) {
-        if (item.quantity > 1) {
-          await updateItemQuantity(itemId, item.quantity - 1);
-        } else {
-          await removeFromCart(itemId);
-        }
-      }
-    }
-  }
-
-  // Method to handle checkout - ensures user is logged in and cart is synced
-  Future<bool> prepareForCheckout() async {
-    try {
-      if (kDebugMode) {
-        print('🛒 PREPARE FOR CHECKOUT');
-        print(
-            '🛒 User authenticated: ${_authController.isAuthenticated.value}');
-      }
-
-      // TEMPORARY TEST: Always store redirect to test the flow
-      if (kDebugMode) {
-        print('🧪 TESTING: Always storing redirect for testing');
-        RedirectService.instance.setRedirectDestination('/checkout');
-      }
-
-      // Check authentication status
-      if (!_authController.isAuthenticated.value) {
-        if (kDebugMode) {
-          print('🔒 User NOT authenticated - redirecting to login');
-        }
-
-        Get.snackbar(
-          'Login Required',
-          'Please login to continue with checkout',
-          snackPosition: SnackPosition.BOTTOM,
-          backgroundColor: AppColors.warning,
-          colorText: Colors.white,
-          duration: const Duration(seconds: 3),
-        );
-
-        // Use redirect service to handle the redirect
-        RedirectService.instance.requireLogin('/checkout');
-        return false;
+      // 1. IMMEDIATE UI UPDATE (Optimistic)
+      if (newQuantity <= 0) {
+        localCart.removeAt(index);
       } else {
-        if (kDebugMode) {
-          print('✅ User IS authenticated - proceeding to checkout');
-        }
-      }
-
-      // If user is authenticated and has local cart items, sync them
-      if (localCart.isNotEmpty) {
-        isLoading.value = true;
-        await _syncLocalCartToServer();
-        isLoading.value = false;
-      }
-
-      // Validate that cart is not empty before checkout
-      if (isEmpty) {
-        Get.snackbar(
-          'Cart Empty',
-          'Please add some items to your cart before checkout',
-          snackPosition: SnackPosition.BOTTOM,
-          backgroundColor: AppColors.warning,
-          colorText: Colors.white,
+        localCart[index] = LocalCartItem(
+          artworkId: originalItem.artworkId,
+          title: originalItem.title,
+          imageUrl: originalItem.imageUrl,
+          price: originalItem.price,
+          quantity: newQuantity,
+          currency: originalItem.currency,
         );
-        return false;
       }
 
-      return true;
+      // 2. PERSIST TO STORAGE (Background)
+      await Future.delayed(Duration.zero); // Allow UI to update first
+      _saveLocalCart();
+
+      print('🛒 Local cart updated smoothly for $artworkId');
     } catch (e) {
-      isLoading.value = false;
+      // 3. ROLLBACK on error
+      print('🛒 Error updating local cart, rolling back: $e');
+
+      if (newQuantity <= 0) {
+        // Restore the removed item
+        localCart.insert(index, originalItem);
+      } else {
+        // Restore the original quantity
+        localCart[index] = originalItem;
+      }
+
       Get.snackbar(
         'Error',
-        'Failed to prepare checkout: $e',
+        'Failed to update cart. Please try again.',
         snackPosition: SnackPosition.BOTTOM,
         backgroundColor: AppColors.error,
         colorText: Colors.white,
       );
-      return false;
     }
   }
 
-  // Debug method to test redirect service
-  void testRedirectFlow() {
-    if (kDebugMode) {
-      print('🧪 TESTING REDIRECT FLOW');
-
-      // Store a redirect destination
-      RedirectService.instance.setRedirectDestination('/checkout');
-      print('🧪 Stored redirect destination: /checkout');
-
-      // Retrieve the destination
-      final destination = RedirectService.instance.getRedirectDestination();
-      print('🧪 Retrieved destination: $destination');
-
-      // Test the navigation
-      RedirectService.instance.handlePostLoginNavigation();
-      print('🧪 Called handlePostLoginNavigation()');
-    }
-  }
-
-  // Refresh cart data
-  @override
-  Future<void> refresh() async {
-    if (isGuest.value || !_authController.isAuthenticated.value) {
-      _loadLocalCart();
+  // Prepare for checkout
+  Map<String, dynamic> prepareForCheckout() {
+    if (isGuest) {
+      return {
+        'items': localCart
+            .map((item) => {
+                  'artwork_id': item.artworkId,
+                  'quantity': item.quantity,
+                  'price': item.price,
+                  'currency': item.currency,
+                })
+            .toList(),
+        'subtotal': subtotal,
+        'tax': tax,
+        'total': total,
+        'currency': cartCurrency,
+      };
     } else {
+      return {
+        'cart_id': cart.value?.id,
+        'items': cart.value?.items
+            .map((item) => {
+                  'artwork_id': item.artwork.id,
+                  'quantity': item.quantity,
+                  'price': item.artwork.price,
+                  'currency': item.artwork.currency,
+                })
+            .toList(),
+        'subtotal': subtotal,
+        'tax': tax,
+        'total': total,
+        'currency': cartCurrency,
+      };
+    }
+  }
+
+  // Add to local cart (for guest users)
+  void addToLocalCart({
+    required String artworkId, // Changed from int to String
+    required String title,
+    required String imageUrl,
+    required double price,
+    int quantity = 1,
+    String? currency, // Added currency parameter
+  }) {
+    print('🛒 addToLocalCart called with: artworkId=$artworkId, title=$title');
+    print('🛒 Current localCart length: ${localCart.length}');
+
+    final itemCurrency = currency ??
+        AppConstants.defaultCurrency; // Use provided currency or default
+
+    try {
+      final existingIndex =
+          localCart.indexWhere((item) => item.artworkId == artworkId);
+      print('🛒 Existing index: $existingIndex');
+
+      if (existingIndex != -1) {
+        // Update existing item
+        print('🛒 Updating existing item');
+        final existingItem = localCart[existingIndex];
+        localCart[existingIndex] = LocalCartItem(
+          artworkId: existingItem.artworkId,
+          title: existingItem.title,
+          imageUrl: existingItem.imageUrl,
+          price: existingItem.price,
+          quantity: existingItem.quantity + quantity,
+          currency: existingItem.currency, // Keep existing currency
+        );
+      } else {
+        // Add new item
+        print('🛒 Adding new item');
+        localCart.add(LocalCartItem(
+          artworkId: artworkId,
+          title: title,
+          imageUrl: imageUrl,
+          price: price,
+          quantity: quantity,
+          currency: itemCurrency,
+        ));
+      }
+
+      _saveLocalCart();
+      print('🛒 Local cart saved. New length: ${localCart.length}');
+
+      Get.snackbar(
+        'Success',
+        'Added to cart!',
+        snackPosition: SnackPosition.BOTTOM,
+        backgroundColor: AppColors.accent,
+        colorText: Colors.white,
+      );
+    } catch (e) {
+      print('🛒 Error in addToLocalCart: $e');
+      throw e;
+    }
+  }
+
+  // Method to get cart statistics
+  Map<String, dynamic> getCartStatistics() {
+    if (isGuest) {
+      return {
+        'total_items': localCart.length,
+        'total_quantity': localCart.fold(0, (sum, item) => sum + item.quantity),
+        'total_amount': subtotal,
+        'unique_artworks': localCart.length,
+        'currency': cartCurrency, // Use dynamic currency
+        'is_guest': true,
+      };
+    }
+
+    if (cart.value == null) {
+      return {
+        'total_items': 0,
+        'total_quantity': 0,
+        'total_amount': 0.0,
+        'unique_artworks': 0,
+        'currency': cartCurrency, // Use dynamic currency
+        'is_guest': false,
+      };
+    }
+
+    return {
+      'total_items': cart.value!.items.length,
+      'total_quantity': cart.value!.totalItems,
+      'total_amount': cart.value!.totalAmount,
+      'unique_artworks': cart.value!.items.length,
+      'currency': cart.value!.currency, // Use actual cart currency
+      'is_guest': false,
+    };
+  }
+
+  // Method to validate cart before checkout
+  Future<Map<String, dynamic>> validateCartForCheckout() async {
+    if (isGuest && localCart.isEmpty) {
+      return {
+        'is_valid': false,
+        'errors': ['Cart is empty'],
+      };
+    }
+
+    if (!isGuest && (cart.value == null || cart.value!.isEmpty)) {
+      return {
+        'is_valid': false,
+        'errors': ['Cart is empty'],
+      };
+    }
+
+    // Additional validation logic can be added here
+    // e.g., check if items are still available, prices haven't changed, etc.
+
+    return {
+      'is_valid': true,
+      'errors': [],
+    };
+  }
+
+  // Method to sync local cart with server cart (for when user logs in)
+  Future<void> syncLocalCartWithServer() async {
+    if (isGuest || localCart.isEmpty) return;
+
+    try {
+      isLoading.value = true;
+      print('🔄 Syncing local cart with server...');
+
+      for (final localItem in localCart) {
+        try {
+          await addToCart(
+            localItem.artworkId, // artworkId is already a string
+            quantity: localItem.quantity,
+            title: localItem.title,
+            imageUrl: localItem.imageUrl,
+            price: localItem.price,
+            currency: localItem.currency, // Pass currency information
+          );
+        } catch (e) {
+          print('🔄 Failed to sync item ${localItem.artworkId}: $e');
+        }
+      }
+
+      // Clear local cart after successful sync
+      localCart.clear();
+      _saveLocalCart();
+
+      // Reload server cart
       await loadCart();
+
+      Get.snackbar(
+        'Success',
+        'Cart synced successfully!',
+        snackPosition: SnackPosition.BOTTOM,
+        backgroundColor: AppColors.accent,
+        colorText: Colors.white,
+      );
+    } catch (e) {
+      print('🔄 Error syncing cart: $e');
+      Get.snackbar(
+        'Error',
+        'Failed to sync cart',
+        snackPosition: SnackPosition.BOTTOM,
+        backgroundColor: Colors.red,
+        colorText: Colors.white,
+      );
+    } finally {
+      isLoading.value = false;
     }
   }
 }

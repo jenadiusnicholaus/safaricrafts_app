@@ -28,10 +28,9 @@ class CartView extends GetView<CartController> {
         elevation: 0,
         actions: [
           Obx(() {
-            final hasItems =
-                controller.isGuest.value || !controller.isLoading.value
-                    ? controller.localCart.isNotEmpty
-                    : controller.cart.value?.items.isNotEmpty == true;
+            final hasItems = controller.isGuest
+                ? controller.localCart.isNotEmpty
+                : controller.cart.value?.items.isNotEmpty == true;
 
             return hasItems
                 ? IconButton(
@@ -54,9 +53,9 @@ class CartView extends GetView<CartController> {
         }
 
         // Check if cart is empty (both local and server)
-        final isCartEmpty = controller.isGuest.value
+        final isCartEmpty = controller.isGuest
             ? controller.localCart.isEmpty
-            : (controller.cart.value?.items.isEmpty ?? true);
+            : controller.cart.value?.items.isEmpty == true;
 
         if (isCartEmpty) {
           return _buildEmptyCart();
@@ -66,7 +65,7 @@ class CartView extends GetView<CartController> {
           children: [
             // Guest Mode Banner
             Obx(() {
-              if (controller.isGuest.value) {
+              if (controller.isGuest) {
                 return Container(
                   width: double.infinity,
                   padding: EdgeInsets.all(12.w),
@@ -106,19 +105,19 @@ class CartView extends GetView<CartController> {
             Expanded(
               child: ListView.builder(
                 padding: EdgeInsets.all(16.w),
-                itemCount: controller.isGuest.value
+                itemCount: controller.isGuest
                     ? controller.localCart.length
-                    : controller.cart.value!.items.length,
+                    : controller.cart.value?.items.length ?? 0,
                 itemBuilder: (context, index) {
-                  if (controller.isGuest.value) {
+                  if (controller.isGuest) {
                     // Local cart item
                     final item = controller.localCart[index];
                     return LocalCartItemCard(
                       cartItem: item,
                       index: index,
-                      onQuantityChanged: (quantity) =>
-                          controller.updateItemQuantity(index, quantity),
-                      onRemove: () => controller.removeFromCart(index),
+                      onQuantityChanged: (quantity) => controller
+                          .updateLocalItemQuantity(item.artworkId, quantity),
+                      onRemove: () => controller.removeFromCart(item.artworkId),
                     );
                   } else {
                     // Server cart item
@@ -126,7 +125,7 @@ class CartView extends GetView<CartController> {
                     return CartItemCard(
                       cartItem: item,
                       onQuantityChanged: (quantity) =>
-                          controller.updateItemQuantity(item.id, quantity),
+                          controller.updateCartItemQuantity(item.id, quantity),
                       onRemove: () => controller.removeFromCart(item.id),
                     );
                   }
@@ -134,120 +133,125 @@ class CartView extends GetView<CartController> {
               ),
             ),
 
-            // Bottom Summary
+            // Cart Summary
             Container(
               padding: EdgeInsets.all(16.w),
               decoration: BoxDecoration(
-                color: Colors.white,
+                color: AppColors.surface,
                 boxShadow: [
                   BoxShadow(
-                    color: AppColors.shadow.withOpacity(0.1),
-                    blurRadius: 20,
-                    offset: const Offset(0, -5),
+                    color: Colors.black.withOpacity(0.1),
+                    blurRadius: 10,
+                    offset: const Offset(0, -2),
                   ),
                 ],
               ),
-              child: SafeArea(
-                child: Column(
-                  children: [
-                    // Price Summary
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text(
-                          'Subtotal',
-                          style: TextStyle(
-                            fontSize: 16.sp,
-                            color: AppColors.textSecondary,
-                          ),
+              child: Column(
+                children: [
+                  // Subtotal
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        'Subtotal',
+                        style: TextStyle(
+                          fontSize: 16.sp,
+                          color: AppColors.textSecondary,
                         ),
-                        Text(
-                          '\$${controller.subtotal.toStringAsFixed(2)}',
-                          style: TextStyle(
-                            fontSize: 16.sp,
-                            fontWeight: FontWeight.w600,
-                            color: AppColors.textPrimary,
-                          ),
+                      ),
+                      Text(
+                        controller.formatPrice(
+                            controller.subtotal, controller.cartCurrency),
+                        style: TextStyle(
+                          fontSize: 16.sp,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.textPrimary,
                         ),
-                      ],
-                    ),
-                    SizedBox(height: 8.h),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text(
-                          'Shipping',
-                          style: TextStyle(
-                            fontSize: 14.sp,
-                            color: AppColors.textSecondary,
-                          ),
-                        ),
-                        Text(
-                          'Free',
-                          style: TextStyle(
-                            fontSize: 14.sp,
-                            color: AppColors.success,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                      ],
-                    ),
-                    Divider(height: 20.h),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text(
-                          'Total',
-                          style: TextStyle(
-                            fontSize: 18.sp,
-                            fontWeight: FontWeight.bold,
-                            color: AppColors.textPrimary,
-                          ),
-                        ),
-                        Text(
-                          '\$${controller.total.toStringAsFixed(2)}',
-                          style: TextStyle(
-                            fontSize: 18.sp,
-                            fontWeight: FontWeight.bold,
-                            color: AppColors.primary,
-                          ),
-                        ),
-                      ],
-                    ),
-                    SizedBox(height: 16.h),
+                      ),
+                    ],
+                  ),
+                  SizedBox(height: 8.h),
 
-                    // Checkout Button
-                    SizedBox(
-                      width: double.infinity,
-                      height: 50.h,
-                      child: ElevatedButton(
-                        onPressed: () async {
-                          final canProceed =
-                              await controller.prepareForCheckout();
-                          if (canProceed) {
-                            // Only navigate if user is already authenticated
-                            // If not authenticated, prepareForCheckout handles the redirect
-                            Get.toNamed(AppRoutes.checkout);
-                          }
-                        },
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: AppColors.primary,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12.r),
-                          ),
+                  // Tax
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        'Tax (10%)',
+                        style: TextStyle(
+                          fontSize: 14.sp,
+                          color: AppColors.textSecondary,
                         ),
-                        child: Text(
-                          'Proceed to Checkout',
-                          style: TextStyle(
-                            fontSize: 16.sp,
-                            fontWeight: FontWeight.w600,
-                            color: Colors.white,
-                          ),
+                      ),
+                      Text(
+                        controller.formatPrice(
+                            controller.tax, controller.cartCurrency),
+                        style: TextStyle(
+                          fontSize: 14.sp,
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
+                    ],
+                  ),
+
+                  Divider(height: 20.h),
+
+                  // Total
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        'Total',
+                        style: TextStyle(
+                          fontSize: 18.sp,
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.textPrimary,
+                        ),
+                      ),
+                      Text(
+                        controller.formatPrice(
+                            controller.total, controller.cartCurrency),
+                        style: TextStyle(
+                          fontSize: 18.sp,
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.primary,
+                        ),
+                      ),
+                    ],
+                  ),
+
+                  SizedBox(height: 16.h),
+
+                  // Checkout Button
+                  SizedBox(
+                    width: double.infinity,
+                    height: 50.h,
+                    child: ElevatedButton(
+                      onPressed: () {
+                        final checkoutData = controller.prepareForCheckout();
+                        if (checkoutData.isNotEmpty) {
+                          // Only navigate if we have checkout data
+                          Get.toNamed(AppRoutes.checkout,
+                              arguments: checkoutData);
+                        }
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.primary,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(25.r),
+                        ),
+                      ),
+                      child: Text(
+                        'Proceed to Checkout',
+                        style: TextStyle(
+                          fontSize: 16.sp,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.white,
                         ),
                       ),
                     ),
-                  ],
-                ),
+                  ),
+                ],
               ),
             ),
           ],
@@ -258,66 +262,54 @@ class CartView extends GetView<CartController> {
 
   Widget _buildEmptyCart() {
     return Center(
-      child: Padding(
-        padding: EdgeInsets.all(32.w),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Container(
-              width: 120.w,
-              height: 120.h,
-              decoration: BoxDecoration(
-                color: AppColors.greyLight,
-                shape: BoxShape.circle,
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(
+            Iconsax.shopping_cart,
+            size: 80.sp,
+            color: AppColors.textSecondary.withOpacity(0.5),
+          ),
+          SizedBox(height: 24.h),
+          Text(
+            'Your cart is empty',
+            style: TextStyle(
+              fontSize: 20.sp,
+              fontWeight: FontWeight.w600,
+              color: AppColors.textPrimary,
+            ),
+          ),
+          SizedBox(height: 8.h),
+          Text(
+            'Add some artworks to get started',
+            style: TextStyle(
+              fontSize: 14.sp,
+              color: AppColors.textSecondary,
+            ),
+          ),
+          SizedBox(height: 32.h),
+          ElevatedButton(
+            onPressed: () => Get.offAllNamed(AppRoutes.home),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.primary,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(25.r),
               ),
-              child: Icon(
-                Iconsax.shopping_cart,
-                size: 60.sp,
-                color: AppColors.grey,
+              padding: EdgeInsets.symmetric(
+                horizontal: 32.w,
+                vertical: 12.h,
               ),
             ),
-            SizedBox(height: 24.h),
-            Text(
-              'Your Cart is Empty',
+            child: Text(
+              'Continue Shopping',
               style: TextStyle(
-                fontSize: 20.sp,
-                fontWeight: FontWeight.bold,
-                color: AppColors.textPrimary,
+                fontSize: 16.sp,
+                fontWeight: FontWeight.w600,
+                color: Colors.white,
               ),
             ),
-            SizedBox(height: 8.h),
-            Text(
-              'Looks like you haven\'t added any artworks to your cart yet',
-              style: TextStyle(
-                fontSize: 14.sp,
-                color: AppColors.textSecondary,
-              ),
-              textAlign: TextAlign.center,
-            ),
-            SizedBox(height: 32.h),
-            SizedBox(
-              width: double.infinity,
-              height: 50.h,
-              child: ElevatedButton(
-                onPressed: () => Get.toNamed(AppRoutes.artworks),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.primary,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12.r),
-                  ),
-                ),
-                child: Text(
-                  'Start Shopping',
-                  style: TextStyle(
-                    fontSize: 16.sp,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.white,
-                  ),
-                ),
-              ),
-            ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -325,23 +317,48 @@ class CartView extends GetView<CartController> {
   void _showClearCartDialog(BuildContext context) {
     Get.dialog(
       AlertDialog(
-        title: const Text('Clear Cart'),
-        content: const Text(
-            'Are you sure you want to remove all items from your cart?'),
+        title: Text(
+          'Clear Cart',
+          style: TextStyle(
+            fontSize: 18.sp,
+            fontWeight: FontWeight.bold,
+            color: AppColors.textPrimary,
+          ),
+        ),
+        content: Text(
+          'Are you sure you want to clear all items from your cart?',
+          style: TextStyle(
+            fontSize: 14.sp,
+            color: AppColors.textSecondary,
+          ),
+        ),
         actions: [
           TextButton(
             onPressed: () => Get.back(),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () {
-              controller.clearCart();
-              Get.back();
-            },
-            style: TextButton.styleFrom(
-              foregroundColor: AppColors.error,
+            child: Text(
+              'Cancel',
+              style: TextStyle(
+                fontSize: 14.sp,
+                color: AppColors.textSecondary,
+              ),
             ),
-            child: const Text('Clear'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Get.back();
+              controller.clearCart();
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.error,
+            ),
+            child: Text(
+              'Clear',
+              style: TextStyle(
+                fontSize: 14.sp,
+                fontWeight: FontWeight.w600,
+                color: Colors.white,
+              ),
+            ),
           ),
         ],
       ),

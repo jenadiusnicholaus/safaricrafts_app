@@ -60,9 +60,21 @@ class AppConstants {
   static const int maxNameLength = 50;
   static const int maxDescriptionLength = 500;
 
-  // Currency
-  static const String defaultCurrency = 'USD';
-  static const String currencySymbol = '\$';
+  // Currency Configuration
+  static const String defaultCurrency =
+      'TZS'; // Updated to match the app's primary currency
+  static const String secondaryCurrency = 'USD';
+  static const String currencySymbol =
+      'TZS'; // Updated to match primary currency
+  static const String secondaryCurrencySymbol = '\$';
+
+  // Currency formatting
+  static const Map<String, String> currencySymbols = {
+    'TZS': 'TZS',
+    'USD': '\$',
+    'EUR': '€',
+    'GBP': '£',
+  };
 
   // Date Formats
   static const String dateFormat = 'MMM dd, yyyy';

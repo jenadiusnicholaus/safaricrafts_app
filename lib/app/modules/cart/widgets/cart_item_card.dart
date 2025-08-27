@@ -46,18 +46,46 @@ class CartItemCard extends StatelessWidget {
             child: ClipRRect(
               borderRadius: BorderRadius.circular(8.r),
               child: CachedNetworkImage(
-                imageUrl: cartItem.artwork.mainImage ?? '',
+                imageUrl: cartItem.artwork.getImageUrl(),
                 fit: BoxFit.cover,
-                placeholder: (context, url) => Icon(
-                  Iconsax.image,
-                  color: AppColors.grey,
-                  size: 32.sp,
+                placeholder: (context, url) => Container(
+                  color: AppColors.greyLight,
+                  child: Center(
+                    child: Icon(
+                      Iconsax.image,
+                      color: AppColors.grey,
+                      size: 24.sp,
+                    ),
+                  ),
                 ),
-                errorWidget: (context, url, error) => Icon(
-                  Iconsax.image,
-                  color: AppColors.grey,
-                  size: 32.sp,
-                ),
+                errorWidget: (context, url, error) {
+                  print(
+                      '🖼️ Image loading error for: ${cartItem.artwork.getImageUrl()}');
+                  print('🖼️ Raw mainImage: ${cartItem.artwork.mainImage}');
+                  print('🖼️ Error: $error');
+                  return Container(
+                    color: AppColors.greyLight,
+                    child: Center(
+                      child: Icon(
+                        Iconsax.image,
+                        color: AppColors.grey,
+                        size: 24.sp,
+                      ),
+                    ),
+                  );
+                },
+                imageBuilder: (context, imageProvider) {
+                  print(
+                      '🖼️ Image loaded successfully: ${cartItem.artwork.getImageUrl()}');
+                  return Container(
+                    decoration: BoxDecoration(
+                      image: DecorationImage(
+                        image: imageProvider,
+                        fit: BoxFit.cover,
+                      ),
+                    ),
+                  );
+                },
               ),
             ),
           ),
@@ -89,70 +117,76 @@ class CartItemCard extends StatelessWidget {
                   ),
                 SizedBox(height: 8.h),
                 Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Text(
-                      '\$${cartItem.artwork.price.toStringAsFixed(2)}',
-                      style: TextStyle(
-                        fontSize: 16.sp,
-                        fontWeight: FontWeight.bold,
-                        color: AppColors.primary,
+                    Expanded(
+                      child: Text(
+                        '\$${cartItem.artwork.price.toStringAsFixed(2)}',
+                        style: TextStyle(
+                          fontSize: 16.sp,
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.primary,
+                        ),
                       ),
                     ),
-                    Row(
-                      children: [
-                        // Quantity Controls
-                        GestureDetector(
-                          onTap: () {
-                            if (cartItem.quantity > 1) {
-                              onQuantityChanged(cartItem.quantity - 1);
-                            }
-                          },
-                          child: Container(
-                            width: 32.w,
-                            height: 32.h,
-                            decoration: BoxDecoration(
-                              color: AppColors.greyLight,
-                              borderRadius: BorderRadius.circular(6.r),
-                            ),
-                            child: Icon(
-                              Iconsax.minus,
-                              size: 16.sp,
-                              color: cartItem.quantity > 1
-                                  ? AppColors.textPrimary
-                                  : AppColors.grey,
-                            ),
-                          ),
-                        ),
-                        Container(
-                          width: 40.w,
-                          child: Text(
-                            '${cartItem.quantity}',
-                            style: TextStyle(
-                              fontSize: 14.sp,
-                              fontWeight: FontWeight.w600,
-                              color: AppColors.textPrimary,
-                            ),
-                            textAlign: TextAlign.center,
-                          ),
-                        ),
-                        GestureDetector(
-                          onTap: () => onQuantityChanged(cartItem.quantity + 1),
-                          child: Container(
-                            width: 32.w,
-                            height: 32.h,
-                            decoration: BoxDecoration(
-                              color: AppColors.primary.withOpacity(0.1),
-                              borderRadius: BorderRadius.circular(6.r),
-                            ),
-                            child: Icon(
-                              Iconsax.add,
-                              size: 16.sp,
-                              color: AppColors.primary,
+                    SizedBox(width: 8.w),
+                    Flexible(
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          // Quantity Controls
+                          GestureDetector(
+                            onTap: () {
+                              if (cartItem.quantity > 1) {
+                                onQuantityChanged(cartItem.quantity - 1);
+                              }
+                            },
+                            child: Container(
+                              width: 28.w,
+                              height: 28.h,
+                              decoration: BoxDecoration(
+                                color: AppColors.greyLight,
+                                borderRadius: BorderRadius.circular(6.r),
+                              ),
+                              child: Icon(
+                                Iconsax.minus,
+                                size: 14.sp,
+                                color: cartItem.quantity > 1
+                                    ? AppColors.textPrimary
+                                    : AppColors.grey,
+                              ),
                             ),
                           ),
-                        ),
-                      ],
+                          Container(
+                            width: 35.w,
+                            child: Text(
+                              '${cartItem.quantity}',
+                              style: TextStyle(
+                                fontSize: 14.sp,
+                                fontWeight: FontWeight.w600,
+                                color: AppColors.textPrimary,
+                              ),
+                              textAlign: TextAlign.center,
+                            ),
+                          ),
+                          GestureDetector(
+                            onTap: () =>
+                                onQuantityChanged(cartItem.quantity + 1),
+                            child: Container(
+                              width: 28.w,
+                              height: 28.h,
+                              decoration: BoxDecoration(
+                                color: AppColors.primary.withOpacity(0.1),
+                                borderRadius: BorderRadius.circular(6.r),
+                              ),
+                              child: Icon(
+                                Iconsax.add,
+                                size: 14.sp,
+                                color: AppColors.primary,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ],
                 ),
