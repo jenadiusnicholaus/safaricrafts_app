@@ -11,6 +11,7 @@ class ArtworkProvider {
     int? offset,
     int limit = 20,
     String? category,
+    int? categoryId,
     String? collection,
     String? tribe,
     String? region,
@@ -30,6 +31,7 @@ class ArtworkProvider {
 
     if (offset != null) queryParams['offset'] = offset.toString();
     if (category != null) queryParams['category'] = category;
+    if (categoryId != null) queryParams['category_id'] = categoryId.toString();
     if (collection != null) queryParams['collection'] = collection;
     if (tribe != null) queryParams['tribe'] = tribe;
     if (region != null) queryParams['region'] = region;

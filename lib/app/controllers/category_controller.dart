@@ -30,7 +30,9 @@ class CategoryController extends GetxController {
   Future<void> loadCategories() async {
     try {
       isLoading.value = true;
-      final result = await _categoryProvider.getCategories();
+      final result = await _categoryProvider.getCategories(
+        includeArtworkCount: true,
+      );
       categories.value = result.results;
 
       // Build category hierarchy

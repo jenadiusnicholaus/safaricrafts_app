@@ -3,6 +3,8 @@ import 'package:get/get.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:iconsax/iconsax.dart';
 import '../../controllers/category_controller.dart';
+import '../../controllers/artwork_controller.dart';
+import '../../data/models/category_model.dart';
 import '../../core/theme/app_colors.dart';
 import '../../routes/app_routes.dart';
 import 'widgets/category_grid_item.dart';
@@ -131,12 +133,8 @@ class CategoriesView extends GetView<CategoryController> {
                       return CategoryGridItem(
                         title: category.name,
                         icon: _getCategoryIcon(category.name),
-                        artworkCount:
-                            0, // Default since category doesn't have artworkCount
-                        onTap: () => Get.toNamed(
-                          AppRoutes.artworksByCategory,
-                          arguments: category,
-                        ),
+                        artworkCount: category.artworkCount ?? 0,
+                        onTap: () => _navigateToArtworksByCategory(category),
                       );
                     } else {
                       final additionalIndex =
@@ -222,6 +220,28 @@ class CategoriesView extends GetView<CategoryController> {
           ),
         ),
       ),
+    );
+  }
+
+  /// Navigate to artworks filtered by category
+  void _navigateToArtworksByCategory(Category category) {
+    // Get artwork controller and set up category filter
+    final artworkController = Get.find<ArtworkController>();
+
+    // Apply category filter with both name and ID for better compatibility
+    artworkController.applyFilters(
+      category: category.name,
+      categoryId: category.id,
+    );
+
+    // Navigate to artworks by category page with category info
+    Get.toNamed(
+      AppRoutes.artworksByCategory,
+      arguments: {
+        'categoryId': category.id,
+        'categoryName': category.name,
+        'category': category,
+      },
     );
   }
 

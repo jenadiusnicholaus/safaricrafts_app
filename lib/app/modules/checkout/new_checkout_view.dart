@@ -13,8 +13,8 @@ import 'widgets/order_review_step.dart';
 import 'widgets/payment_step.dart';
 import 'widgets/order_confirmation_step.dart';
 
-class CheckoutView extends GetView<CheckoutController> {
-  const CheckoutView({super.key});
+class NewCheckoutView extends GetView<CheckoutController> {
+  const NewCheckoutView({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -65,7 +65,7 @@ class CheckoutView extends GetView<CheckoutController> {
           Expanded(
             child: SingleChildScrollView(
               padding: EdgeInsets.all(16.w),
-              child: Obx(() => _buildCurrentStep()),
+              child: Obx(() => _buildStepContent(controller.currentStep.value)),
             ),
           ),
 
@@ -109,22 +109,22 @@ class CheckoutView extends GetView<CheckoutController> {
     );
   }
 
-  Widget _buildCurrentStep() {
-    switch (controller.currentStep.value) {
+  Widget _buildStepContent(CheckoutStep step) {
+    switch (step) {
       case CheckoutStep.shippingAddress:
         return ShippingAddressStep();
       case CheckoutStep.shippingMethod:
-        return ShippingMethodStep();
+        return const ShippingMethodStep();
       case CheckoutStep.billingAddress:
         return BillingAddressStep();
       case CheckoutStep.paymentMethod:
-        return PaymentMethodStep();
+        return const PaymentMethodStep();
       case CheckoutStep.orderReview:
-        return OrderReviewStep();
+        return const OrderReviewStep();
       case CheckoutStep.payment:
-        return PaymentStep();
+        return const PaymentStep();
       case CheckoutStep.confirmation:
-        return OrderConfirmationStep();
+        return const OrderConfirmationStep();
       default:
         return ShippingAddressStep();
     }

@@ -12,9 +12,9 @@ class AppColors {
   static const Color secondaryLight = Color(0xFFFFB347);
 
   static const Color accent =
-      Color(0xFFFFD700); // Gold - representing African wealth
-  static const Color accentDark = Color(0xFFB8860B);
-  static const Color accentLight = Color(0xFFFFFACD);
+      Color(0xFFFF8F00); // Amber - warm and user-friendly
+  static const Color accentDark = Color(0xFFE65100);
+  static const Color accentLight = Color(0xFFFFC947);
 
   // Neutral colors
   static const Color background = Color(0xFFFAFAFA);

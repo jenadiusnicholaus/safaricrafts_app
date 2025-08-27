@@ -7,6 +7,7 @@ class Category {
   final List<Category> children;
   final bool isActive;
   final int sortOrder;
+  final int? artworkCount;
 
   Category({
     required this.id,
@@ -17,6 +18,7 @@ class Category {
     required this.children,
     required this.isActive,
     required this.sortOrder,
+    this.artworkCount,
   });
 
   factory Category.fromJson(Map<String, dynamic> json) {
@@ -33,6 +35,7 @@ class Category {
           : [],
       isActive: json['is_active'] ?? true,
       sortOrder: json['sort_order'] ?? 0,
+      artworkCount: json['artwork_count'],
     );
   }
 
@@ -46,6 +49,7 @@ class Category {
       'children': children.map((e) => e.toJson()).toList(),
       'is_active': isActive,
       'sort_order': sortOrder,
+      'artwork_count': artworkCount,
     };
   }
 }

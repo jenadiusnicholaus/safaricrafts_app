@@ -10,11 +10,13 @@ class CategoryProvider {
   Future<PaginatedCategoryList> getCategories({
     int? limit,
     int? offset,
+    bool includeArtworkCount = false,
   }) async {
     try {
       final Map<String, dynamic> queryParams = {};
       if (limit != null) queryParams['limit'] = limit;
       if (offset != null) queryParams['offset'] = offset;
+      if (includeArtworkCount) queryParams['include_artwork_count'] = true;
 
       final response = await _apiService.get(
         ApiConstants.categories,
@@ -24,6 +26,19 @@ class CategoryProvider {
       return PaginatedCategoryList.fromJson(response.data);
     } catch (e) {
       throw Exception('Failed to fetch categories: $e');
+    }
+  }
+
+  /// Get category with artwork count
+  Future<Category> getCategoryWithCount(int categoryId) async {
+    try {
+      final response = await _apiService.get(
+        '${ApiConstants.categories}$categoryId/?include_artwork_count=true',
+      );
+
+      return Category.fromJson(response.data);
+    } catch (e) {
+      throw Exception('Failed to fetch category: $e');
     }
   }
 

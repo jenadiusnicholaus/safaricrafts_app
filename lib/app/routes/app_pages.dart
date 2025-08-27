@@ -15,7 +15,8 @@ import '../modules/artworks/artwork_search_view.dart';
 import '../modules/artworks/artworks_by_category_view.dart';
 import '../modules/wishlist/wishlist_view.dart';
 import '../modules/test/navigation_test_view.dart';
-import '../modules/checkout/checkout_view.dart';
+import '../modules/checkout/new_checkout_view.dart';
+import '../modules/checkout/checkout_binding.dart';
 
 // Placeholder views for missing modules
 class PlaceholderView extends StatelessWidget {
@@ -169,7 +170,8 @@ class AppPages {
     ),
     GetPage(
       name: AppRoutes.checkout,
-      page: () => const CheckoutView(),
+      page: () => const NewCheckoutView(),
+      binding: CheckoutBinding(),
     ),
     GetPage(
       name: AppRoutes.payment,

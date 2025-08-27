@@ -9,7 +9,7 @@ import '../../controllers/artwork_controller.dart';
 import '../../core/theme/app_colors.dart';
 import '../../routes/app_routes.dart';
 import '../../data/models/artwork_model.dart';
-import '../artworks/widgets/instagram_style_artwork_card.dart';
+import '../artworks/widgets/animated_artwork_card.dart';
 import '../artworks/widgets/artwork_filters_sheet.dart';
 import 'widgets/category_chip.dart';
 import 'widgets/search_bar_widget.dart';
@@ -389,7 +389,7 @@ class HomeView extends GetView<ArtworkController> {
                   fetchNextPage: fetchNextPage,
                   builderDelegate: PagedChildBuilderDelegate<ArtworkList>(
                     itemBuilder: (context, artwork, index) {
-                      return InstagramStyleArtworkCard(artwork: artwork);
+                      return AnimatedArtworkCard(artwork: artwork);
                     },
                     firstPageErrorIndicatorBuilder: (context) => Container(
                       margin: EdgeInsets.all(20.w),

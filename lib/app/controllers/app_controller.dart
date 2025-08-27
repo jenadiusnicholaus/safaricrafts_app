@@ -3,6 +3,7 @@ import 'package:get/get.dart';
 import 'package:get_storage/get_storage.dart';
 import '../data/services/api_service.dart';
 import '../services/redirect_service.dart';
+import '../core/services/flying_cart_animation_service.dart';
 import '../data/providers/auth_provider.dart';
 import '../data/providers/artwork_provider.dart';
 import '../data/providers/cart_provider.dart';
@@ -13,6 +14,7 @@ import '../controllers/auth_controller.dart';
 import '../controllers/main_controller.dart';
 import '../controllers/artwork_controller.dart';
 import '../controllers/cart_controller.dart';
+import '../controllers/cart_animation_controller.dart';
 import '../controllers/review_controller.dart';
 import '../controllers/category_controller.dart';
 import '../controllers/wishlist_controller.dart';
@@ -89,6 +91,8 @@ class AppBinding extends Bindings {
     // Core services
     Get.put<ApiService>(ApiService(), permanent: true);
     Get.put<RedirectService>(RedirectService(), permanent: true);
+    Get.put<FlyingCartAnimationService>(FlyingCartAnimationService(),
+        permanent: true);
 
     // Data Providers
     Get.put<AuthProvider>(AuthProvider(), permanent: true);
@@ -104,6 +108,8 @@ class AppBinding extends Bindings {
     Get.put<AuthController>(AuthController(), permanent: true);
     Get.put<ArtworkController>(ArtworkController(), permanent: true);
     Get.put<CartController>(CartController(), permanent: true);
+    Get.put<CartAnimationController>(CartAnimationController(),
+        permanent: true);
     Get.put<ReviewController>(ReviewController(), permanent: true);
     Get.put<CategoryController>(CategoryController(), permanent: true);
     Get.put<WishlistController>(WishlistController(), permanent: true);

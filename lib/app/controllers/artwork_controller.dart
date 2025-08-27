@@ -67,6 +67,7 @@ class ArtworkController extends GetxController {
   // Filters
   final RxString searchQuery = ''.obs;
   final RxString selectedCategory = ''.obs;
+  final RxInt selectedCategoryId = 0.obs;
   final RxString selectedCollection = ''.obs;
   final RxString selectedTribe = ''.obs;
   final RxString selectedRegion = ''.obs;
@@ -102,6 +103,8 @@ class ArtworkController extends GetxController {
         limit: pageSize,
         category:
             selectedCategory.value.isEmpty ? null : selectedCategory.value,
+        categoryId:
+            selectedCategoryId.value == 0 ? null : selectedCategoryId.value,
         collection:
             selectedCollection.value.isEmpty ? null : selectedCollection.value,
         tribe: selectedTribe.value.isEmpty ? null : selectedTribe.value,
@@ -389,6 +392,7 @@ class ArtworkController extends GetxController {
 
   void applyFilters({
     String? category,
+    int? categoryId,
     String? collection,
     String? tribe,
     String? region,
@@ -399,6 +403,7 @@ class ArtworkController extends GetxController {
     bool? uniqueOnly,
   }) {
     if (category != null) selectedCategory.value = category;
+    if (categoryId != null) selectedCategoryId.value = categoryId;
     if (collection != null) selectedCollection.value = collection;
     if (tribe != null) selectedTribe.value = tribe;
     if (region != null) selectedRegion.value = region;
@@ -413,6 +418,7 @@ class ArtworkController extends GetxController {
 
   void clearFilters() {
     selectedCategory.value = '';
+    selectedCategoryId.value = 0;
     selectedCollection.value = '';
     selectedTribe.value = '';
     selectedRegion.value = '';

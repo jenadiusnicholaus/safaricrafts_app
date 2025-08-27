@@ -72,6 +72,16 @@ class ApiConstants {
   static const String createOrder = '/api/v1/orders/create/';
   static const String cancelOrder = '/api/v1/orders';
   static const String orderHistory = '/api/v1/orders/history/';
+
+  // Checkout endpoints
+  static const String getShippingMethods = '/api/v1/shipping/methods/';
+  static const String calculateShippingCost = '/api/v1/shipping/calculate/';
+  static const String getPaymentMethods = '/api/v1/payments/methods/';
+  static const String initializePayment = '/api/v1/payments/initialize/';
+  static const String processMobilePayment = '/api/v1/payments/process-mobile/';
+  static const String checkPaymentStatus = '/api/v1/payments';
+  static const String getOrderDetails = '/api/v1/orders';
+  static const String getUserOrders = '/api/v1/orders/';
 }
 
 class ApiHeaders {
