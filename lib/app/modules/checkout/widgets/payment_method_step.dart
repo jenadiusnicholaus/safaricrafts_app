@@ -203,12 +203,14 @@ class PaymentMethodStep extends GetView<CheckoutController> {
     return Column(
       children: [
         // Group payment methods by provider
-        ...paymentMethods.map((method) => _buildPaymentMethodCard(method, selectedPaymentMethod)),
+        ...paymentMethods.map(
+            (method) => _buildPaymentMethodCard(method, selectedPaymentMethod)),
       ],
     );
   }
 
-  Widget _buildPaymentMethodCard(PaymentMethodModel method, PaymentMethodModel? selected) {
+  Widget _buildPaymentMethodCard(
+      PaymentMethodModel method, PaymentMethodModel? selected) {
     final isSelected = selected?.method == method.method;
 
     return Container(
@@ -238,7 +240,8 @@ class PaymentMethodStep extends GetView<CheckoutController> {
                       width: 48.w,
                       height: 48.w,
                       decoration: BoxDecoration(
-                        color: _getPaymentMethodColor(method.provider).withOpacity(0.1),
+                        color: _getPaymentMethodColor(method.provider)
+                            .withOpacity(0.1),
                         borderRadius: BorderRadius.circular(8.r),
                       ),
                       child: Icon(
@@ -279,14 +282,16 @@ class PaymentMethodStep extends GetView<CheckoutController> {
                     Radio<String>(
                       value: method.method,
                       groupValue: selected?.method,
-                      onChanged: (value) => controller.selectPaymentMethod(method),
+                      onChanged: (value) =>
+                          controller.selectPaymentMethod(method),
                       activeColor: AppColors.primary,
                     ),
                   ],
                 ),
 
                 // Show payment options for mobile money
-                if (method.provider == 'azam_pay' && method.supportedMethods.isNotEmpty)
+                if (method.provider == 'azam_pay' &&
+                    method.supportedMethods.isNotEmpty)
                   _buildMobileMoneyOptions(method),
 
                 // Show processing info

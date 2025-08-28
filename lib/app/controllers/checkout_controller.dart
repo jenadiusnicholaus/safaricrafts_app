@@ -196,10 +196,10 @@ class CheckoutController extends GetxController {
       isLoading.value = true;
       error.value = null;
 
-      final order = await _checkoutApiService.createOrder(
+      final OrderModel order = await _checkoutApiService.createOrder(
         shippingAddress: shippingAddress.value!,
         billingAddress: billingAddress.value!,
-        shippingMethodId: selectedShippingMethod.value!.id.toString(),
+        shippingMethodId: selectedShippingMethod.value!.id,
         customerNotes: '', // You can add a notes field later
         sameAsShipping: sameAsShipping.value,
       );
@@ -208,9 +208,10 @@ class CheckoutController extends GetxController {
       goToStep(CheckoutStep.payment);
 
       print('📦 Order created: ${order.orderNumber}');
-    } catch (e) {
+    } catch (e, s) {
       error.value = e.toString();
       print('❌ Error creating order: $e');
+      print(s);
     } finally {
       isLoading.value = false;
     }

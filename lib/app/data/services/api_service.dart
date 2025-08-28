@@ -5,6 +5,9 @@ import 'package:flutter/foundation.dart';
 import '../../core/constants/api_constants.dart';
 
 class ApiService extends GetxService {
+  ApiService() {
+    _initializeDio();
+  }
   static ApiService get instance => Get.find();
 
   late dio.Dio _dio;

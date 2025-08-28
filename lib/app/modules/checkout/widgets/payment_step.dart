@@ -173,12 +173,16 @@ class PaymentStep extends GetView<CheckoutController> {
                   color: AppColors.textSecondary,
                 ),
               ),
-              Text(
-                order.id ?? 'N/A',
-                style: TextStyle(
-                  fontSize: 12.sp,
-                  fontWeight: FontWeight.w600,
-                  color: AppColors.textPrimary,
+              Expanded(
+                child: Text(
+                  order.id ?? 'N/A',
+                  style: TextStyle(
+                    fontSize: 12.sp,
+                    fontWeight: FontWeight.w600,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                  softWrap: false,
+                  textAlign: TextAlign.right,
                 ),
               ),
             ],

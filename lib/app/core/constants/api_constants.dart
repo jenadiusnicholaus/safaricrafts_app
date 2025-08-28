@@ -4,7 +4,8 @@ class ApiConstants {
 
   // Dynamic base URL based on platform
   static String get baseUrl {
-    return networkBaseUrl; // Use network IP for all platforms
+    // Always use localhost for local testing
+    return networkBaseUrl;
   }
 
   // Legacy localhost URLs (kept for reference)

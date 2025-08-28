@@ -5,6 +5,8 @@ import '../../models/checkout/order_model.dart';
 import '../../models/checkout/address_model.dart';
 import '../api_service.dart';
 import '../../../core/constants/api_constants.dart';
+import 'package:get/get.dart';
+import '../../../controllers/cart_controller.dart';
 
 class CheckoutApiService {
   final ApiService _apiService = ApiService();
@@ -33,7 +35,10 @@ class CheckoutApiService {
       print('🚚 Shipping methods response: ${response.data}');
 
       if (response.statusCode == 200 && response.data != null) {
-        List<dynamic> methodsData = response.data;
+        // Handle paginated response: extract 'results' list
+        final data = response.data;
+        final List<dynamic> methodsData =
+            data is List ? data : (data['results'] ?? []);
         return methodsData
             .map((json) => ShippingMethodModel.fromJson(json))
             .toList();
@@ -92,12 +97,33 @@ class CheckoutApiService {
   Future<OrderModel> createOrder({
     required AddressModel shippingAddress,
     required AddressModel billingAddress,
-    required String shippingMethodId,
+    required int shippingMethodId,
     required String customerNotes,
     required bool sameAsShipping,
   }) async {
     try {
       print('📦 Creating order...');
+
+      // Get cart items from CartController
+      final cartController = Get.find<CartController>();
+      final cartItems = cartController.cart.value?.items ?? [];
+
+      // Defensive: ensure cartItems is a List and not a Map
+      if (cartItems is! List) {
+        throw Exception(
+            'cartItems is not a List. Type: \\${cartItems.runtimeType}');
+      }
+
+      final items = cartItems
+          .map((item) => {
+                'artwork_id': item.artwork.id,
+                'quantity': item.quantity,
+                'unit_price': item.unitPrice,
+              })
+          .toList();
+
+      print(
+          '🛒 DEBUG: items payload type: \\${items.runtimeType}, value: \\${items}');
 
       Map<String, dynamic> orderData = {
         'shipping_address': shippingAddress.toJson(),
@@ -105,6 +131,7 @@ class CheckoutApiService {
         'shipping_method_id': shippingMethodId,
         'customer_notes': customerNotes,
         'same_as_shipping': sameAsShipping,
+        'items': items,
       };
 
       print('📦 Order data: $orderData');
@@ -121,8 +148,9 @@ class CheckoutApiService {
       } else {
         throw Exception('Failed to create order: ${response.statusMessage}');
       }
-    } catch (e) {
+    } catch (e, s) {
       print('❌ Error creating order: $e');
+      print(s);
       throw Exception('Failed to create order: $e');
     }
   }

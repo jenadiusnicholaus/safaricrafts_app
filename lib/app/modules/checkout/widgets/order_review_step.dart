@@ -7,6 +7,119 @@ import '../../../controllers/cart_controller.dart';
 import '../../../core/theme/app_colors.dart';
 
 class OrderReviewStep extends GetView<CheckoutController> {
+  Widget _buildOrderItems(List cartItems) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Order Items (${cartItems.length})',
+          style: TextStyle(
+            fontSize: 16.sp,
+            fontWeight: FontWeight.w600,
+            color: AppColors.textPrimary,
+          ),
+        ),
+        SizedBox(height: 12.h),
+        Container(
+          decoration: BoxDecoration(
+            border: Border.all(color: AppColors.border),
+            borderRadius: BorderRadius.circular(8.r),
+          ),
+          child: Column(
+            children: cartItems.asMap().entries.map((entry) {
+              final index = entry.key;
+              final item = entry.value;
+              final isLast = index == cartItems.length - 1;
+
+              // Support both String and object for mainImage
+              String? imageUrl;
+              final mainImage = item.artwork.mainImage;
+              if (mainImage is String) {
+                imageUrl = mainImage;
+              } else if (mainImage != null && mainImage.file != null) {
+                imageUrl = mainImage.file;
+              }
+
+              return Container(
+                padding: EdgeInsets.all(12.w),
+                decoration: BoxDecoration(
+                  border: isLast
+                      ? null
+                      : Border(bottom: BorderSide(color: AppColors.border)),
+                ),
+                child: Row(
+                  children: [
+                    // Product image
+                    Container(
+                      width: 50.w,
+                      height: 50.w,
+                      decoration: BoxDecoration(
+                        color: AppColors.background,
+                        borderRadius: BorderRadius.circular(6.r),
+                        image: (imageUrl != null && imageUrl.isNotEmpty)
+                            ? DecorationImage(
+                                image: NetworkImage(imageUrl),
+                                fit: BoxFit.cover,
+                              )
+                            : null,
+                      ),
+                      child: (imageUrl == null || imageUrl.isEmpty)
+                          ? Icon(
+                              Iconsax.image,
+                              color: AppColors.textSecondary,
+                              size: 20.sp,
+                            )
+                          : null,
+                    ),
+
+                    SizedBox(width: 12.w),
+
+                    // Product details
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            item.artwork.title ?? 'Product',
+                            style: TextStyle(
+                              fontSize: 14.sp,
+                              fontWeight: FontWeight.w500,
+                              color: AppColors.textPrimary,
+                            ),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          SizedBox(height: 4.h),
+                          Text(
+                            'Qty: ${item.quantity}',
+                            style: TextStyle(
+                              fontSize: 12.sp,
+                              color: AppColors.textSecondary,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+
+                    // Price
+                    Text(
+                      '${(item.unitPrice * item.quantity).toStringAsFixed(0)} TSh',
+                      style: TextStyle(
+                        fontSize: 14.sp,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.textPrimary,
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            }).toList(),
+          ),
+        ),
+      ],
+    );
+  }
+
   const OrderReviewStep({super.key});
 
   @override
@@ -111,7 +224,7 @@ class OrderReviewStep extends GetView<CheckoutController> {
                   child: OutlinedButton(
                     onPressed: () => controller.previousStep(),
                     style: OutlinedButton.styleFrom(
-                      side: BorderSide(color: AppColors.primary),
+                      side: const BorderSide(color: AppColors.primary),
                       padding: EdgeInsets.symmetric(vertical: 14.h),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(8.r),
@@ -164,110 +277,6 @@ class OrderReviewStep extends GetView<CheckoutController> {
         ),
       );
     });
-  }
-
-  Widget _buildOrderItems(List cartItems) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          'Order Items (${cartItems.length})',
-          style: TextStyle(
-            fontSize: 16.sp,
-            fontWeight: FontWeight.w600,
-            color: AppColors.textPrimary,
-          ),
-        ),
-        SizedBox(height: 12.h),
-        Container(
-          decoration: BoxDecoration(
-            border: Border.all(color: AppColors.border),
-            borderRadius: BorderRadius.circular(8.r),
-          ),
-          child: Column(
-            children: cartItems.asMap().entries.map((entry) {
-              final index = entry.key;
-              final item = entry.value;
-              final isLast = index == cartItems.length - 1;
-
-              return Container(
-                padding: EdgeInsets.all(12.w),
-                decoration: BoxDecoration(
-                  border: isLast
-                      ? null
-                      : Border(bottom: BorderSide(color: AppColors.border)),
-                ),
-                child: Row(
-                  children: [
-                    // Product image
-                    Container(
-                      width: 50.w,
-                      height: 50.w,
-                      decoration: BoxDecoration(
-                        color: AppColors.background,
-                        borderRadius: BorderRadius.circular(6.r),
-                        image: item['image'] != null
-                            ? DecorationImage(
-                                image: NetworkImage(item['image']),
-                                fit: BoxFit.cover,
-                              )
-                            : null,
-                      ),
-                      child: item['image'] == null
-                          ? Icon(
-                              Iconsax.image,
-                              color: AppColors.textSecondary,
-                              size: 20.sp,
-                            )
-                          : null,
-                    ),
-
-                    SizedBox(width: 12.w),
-
-                    // Product details
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            item['name'] ?? 'Product',
-                            style: TextStyle(
-                              fontSize: 14.sp,
-                              fontWeight: FontWeight.w500,
-                              color: AppColors.textPrimary,
-                            ),
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                          SizedBox(height: 4.h),
-                          Text(
-                            'Qty: ${item['quantity']}',
-                            style: TextStyle(
-                              fontSize: 12.sp,
-                              color: AppColors.textSecondary,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-
-                    // Price
-                    Text(
-                      '${(item['price'] * item['quantity']).toStringAsFixed(0)} TSh',
-                      style: TextStyle(
-                        fontSize: 14.sp,
-                        fontWeight: FontWeight.w600,
-                        color: AppColors.textPrimary,
-                      ),
-                    ),
-                  ],
-                ),
-              );
-            }).toList(),
-          ),
-        ),
-      ],
-    );
   }
 
   Widget _buildAddressSection(String title, dynamic address, IconData icon) {
@@ -361,7 +370,18 @@ class OrderReviewStep extends GetView<CheckoutController> {
                     ),
                     SizedBox(height: 4.h),
                     Text(
-                      '${shippingMethod.estimatedDays} days delivery',
+                      // Prefer deliveryTimeRange if available, else estimatedDelivery
+                      (shippingMethod.deliveryTimeRange != null &&
+                              shippingMethod.deliveryTimeRange
+                                  .toString()
+                                  .isNotEmpty)
+                          ? '${shippingMethod.deliveryTimeRange} delivery'
+                          : (shippingMethod.estimatedDelivery != null &&
+                                  shippingMethod.estimatedDelivery
+                                      .toString()
+                                      .isNotEmpty)
+                              ? 'Est. delivery: ${shippingMethod.estimatedDelivery}'
+                              : '',
                       style: TextStyle(
                         fontSize: 11.sp,
                         color: AppColors.textSecondary,
@@ -371,7 +391,10 @@ class OrderReviewStep extends GetView<CheckoutController> {
                 ),
               ),
               Text(
-                '${shippingMethod.cost.toStringAsFixed(0)} TSh',
+                (shippingMethod.calculatedCost != null
+                        ? shippingMethod.calculatedCost.toStringAsFixed(0)
+                        : '0') +
+                    ' TSh',
                 style: TextStyle(
                   fontSize: 13.sp,
                   fontWeight: FontWeight.w600,
@@ -459,7 +482,7 @@ class OrderReviewStep extends GetView<CheckoutController> {
   Widget _buildOrderSummary(
       CartController cartController, dynamic shippingMethod) {
     final subtotal = cartController.subtotal;
-    final shippingCost = shippingMethod?.cost ?? 0.0;
+    final shippingCost = shippingMethod?.calculatedCost ?? 0.0;
     final tax = 0.0; // You can calculate tax if needed
     final total = subtotal + shippingCost + tax;
 

@@ -76,7 +76,8 @@ class OrderProvider {
       );
 
       return Order.fromJson(response.data['data']);
-    } catch (e) {
+    } catch (e, s) {
+      print(s);
       throw Exception('Failed to create order: ${e.toString()}');
     }
   }
