@@ -1,6 +1,7 @@
-import 'dart:async';
-import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:flutter/material.dart';
+import 'package:iconsax/iconsax.dart';
+import 'dart:async';
 import '../data/models/checkout/address_model.dart';
 import '../data/models/checkout/shipping_method_model.dart';
 import '../data/models/checkout/payment_method_model.dart';
@@ -10,12 +11,8 @@ import '../core/theme/app_colors.dart';
 import 'cart_controller.dart';
 
 enum CheckoutStep {
-  shippingAddress,
-  shippingMethod,
-  billingAddress,
-  paymentMethod,
-  orderReview,
-  payment,
+  addressAndShipping,
+  paymentAndReview,
   confirmation,
 }
 
@@ -24,7 +21,7 @@ class CheckoutController extends GetxController {
   late CartController _cartController;
 
   // Observable properties
-  final currentStep = CheckoutStep.shippingAddress.obs;
+  final currentStep = CheckoutStep.addressAndShipping.obs;
   final isLoading = false.obs;
   final error = RxnString();
 
@@ -46,18 +43,49 @@ class CheckoutController extends GetxController {
   final paymentError = RxnString();
   final paymentStatus = 'pending'.obs;
 
+  // Mobile payment phone number
+  final mobilePaymentPhoneNumber = ''.obs;
+
   // Observable for order creation
   final isCreatingOrder = false.obs;
+
+  // Observable for user orders
+  final isLoadingOrders = false.obs;
+  final userOrders = <Map<String, dynamic>>[].obs;
 
   // Additional observables for payment processing
   final isProcessingPayment = false.obs;
   final selectedMobileMoneyMethod = Rxn<String>();
+
+  // Payment details
+  final phoneNumber = ''.obs;
+  final bankAccountNumber = ''.obs;
+  final bankName = ''.obs;
+  final otpCode = ''.obs;
+  final paymentInstructions = ''.obs;
+  final paymentReference = ''.obs;
+  final paymentTimeRemaining = 300.obs; // 5 minutes
+  final showOtpInput = false.obs;
+
+  // Address simplification
+  final quickAddressMode = true.obs;
+  final savedAddresses = <AddressModel>[].obs;
+
+  // Form field observables for reactive UI
+  final formFullName = ''.obs;
+  final formPhone = ''.obs;
+  final formAddress = ''.obs;
+  final formCity = ''.obs;
 
   @override
   void onInit() {
     super.onInit();
     _checkoutApiService = CheckoutApiService();
     _cartController = Get.find<CartController>();
+    loadShippingMethods();
+    loadPaymentMethods();
+    // Automatically fetch user orders on initialization
+    fetchUserOrders();
 
     print('🛒 CheckoutController initialized');
   }
@@ -66,7 +94,6 @@ class CheckoutController extends GetxController {
   void onReady() {
     super.onReady();
     // Load initial data if needed
-    loadPaymentMethods();
   }
 
   // Navigation methods
@@ -205,7 +232,7 @@ class CheckoutController extends GetxController {
       );
 
       currentOrder.value = order;
-      goToStep(CheckoutStep.payment);
+      goToStep(CheckoutStep.confirmation);
 
       print('📦 Order created: ${order.orderNumber}');
     } catch (e, s) {
@@ -275,9 +302,36 @@ class CheckoutController extends GetxController {
 
   Future<void> _processPayPalPayment(
       String orderId, PaymentMethodModel paymentMethod) async {
+    // Get phone number for mobile payments
+    String? phoneNumber;
+    if (paymentMethod.isMobilePayment) {
+      // Use mobile payment phone number if provided, otherwise fall back to shipping address
+      phoneNumber = mobilePaymentPhoneNumber.value.isNotEmpty
+          ? mobilePaymentPhoneNumber.value
+          : shippingAddress.value?.phone;
+
+      // Validate phone number for mobile payments
+      if (phoneNumber == null || phoneNumber.isEmpty) {
+        throw Exception(
+            'Phone number is required for mobile money payments. Please enter your mobile money phone number.');
+      }
+
+      // Ensure phone number is in correct format (starts with +255 for Tanzania)
+      if (!phoneNumber.startsWith('+')) {
+        if (phoneNumber.startsWith('0')) {
+          phoneNumber = '+255${phoneNumber.substring(1)}';
+        } else if (phoneNumber.startsWith('255')) {
+          phoneNumber = '+$phoneNumber';
+        } else {
+          phoneNumber = '+255$phoneNumber';
+        }
+      }
+    }
+
     final response = await _checkoutApiService.initializePayment(
       orderId: orderId,
       paymentMethod: paymentMethod,
+      phoneNumber: phoneNumber,
       returnUrl: 'safaricrafts://payment/success',
       cancelUrl: 'safaricrafts://payment/cancel',
     );
@@ -484,9 +538,33 @@ class CheckoutController extends GetxController {
 
       print('💳 Processing PayPal payment');
 
+      // Get phone number for mobile payments
+      String? phoneNumber;
+      if (selectedPaymentMethod.value!.isMobilePayment) {
+        phoneNumber = shippingAddress.value?.phone;
+
+        // Validate phone number for mobile payments
+        if (phoneNumber == null || phoneNumber.isEmpty) {
+          throw Exception(
+              'Phone number is required for mobile money payments. Please update your shipping address.');
+        }
+
+        // Ensure phone number is in correct format (starts with +255 for Tanzania)
+        if (!phoneNumber.startsWith('+')) {
+          if (phoneNumber.startsWith('0')) {
+            phoneNumber = '+255${phoneNumber.substring(1)}';
+          } else if (phoneNumber.startsWith('255')) {
+            phoneNumber = '+$phoneNumber';
+          } else {
+            phoneNumber = '+255$phoneNumber';
+          }
+        }
+      }
+
       final paymentResult = await _checkoutApiService.initializePayment(
         orderId: currentOrder.value!.id,
         paymentMethod: selectedPaymentMethod.value!,
+        phoneNumber: phoneNumber,
         returnUrl: 'safaricrafts://payment/success',
         cancelUrl: 'safaricrafts://payment/cancel',
       );
@@ -536,9 +614,33 @@ class CheckoutController extends GetxController {
 
       print('💳 Processing generic payment');
 
+      // Get phone number for mobile payments
+      String? phoneNumber;
+      if (selectedPaymentMethod.value!.isMobilePayment) {
+        phoneNumber = shippingAddress.value?.phone;
+
+        // Validate phone number for mobile payments
+        if (phoneNumber == null || phoneNumber.isEmpty) {
+          throw Exception(
+              'Phone number is required for mobile money payments. Please update your shipping address.');
+        }
+
+        // Ensure phone number is in correct format (starts with +255 for Tanzania)
+        if (!phoneNumber.startsWith('+')) {
+          if (phoneNumber.startsWith('0')) {
+            phoneNumber = '+255${phoneNumber.substring(1)}';
+          } else if (phoneNumber.startsWith('255')) {
+            phoneNumber = '+$phoneNumber';
+          } else {
+            phoneNumber = '+255$phoneNumber';
+          }
+        }
+      }
+
       final paymentResult = await _checkoutApiService.initializePayment(
         orderId: currentOrder.value!.id,
         paymentMethod: selectedPaymentMethod.value!,
+        phoneNumber: phoneNumber,
       );
 
       if (paymentResult['success'] == true) {
@@ -617,7 +719,7 @@ class CheckoutController extends GetxController {
   }
 
   void resetCheckout() {
-    currentStep.value = CheckoutStep.shippingAddress;
+    currentStep.value = CheckoutStep.addressAndShipping;
     isLoading.value = false;
     error.value = null;
     shippingAddress.value = null;
@@ -632,6 +734,462 @@ class CheckoutController extends GetxController {
     paymentError.value = null;
 
     print('🔄 Checkout reset');
+  }
+
+  // Enhanced payment methods with streamlined flow
+  // Format phone number to international format
+  String formatPhoneNumber(String phone) {
+    String cleaned = phone.replaceAll(RegExp(r'\D'), '');
+    if (cleaned.startsWith('0')) {
+      cleaned = '255' + cleaned.substring(1);
+    }
+    return '+' + cleaned;
+  }
+
+  // Enhanced payment status polling with real-time updates
+  void _startEnhancedPaymentStatusPolling(String paymentId) {
+    int attempts = 0;
+    const maxAttempts = 60; // 5 minutes with 5-second intervals
+    const interval = Duration(seconds: 5);
+
+    Timer.periodic(interval, (timer) async {
+      attempts++;
+
+      try {
+        final status = await _checkoutApiService.checkPaymentStatus(paymentId);
+        final currentStatus = status['status'];
+
+        paymentStatus.value = currentStatus ?? 'unknown';
+
+        if (currentStatus == 'completed') {
+          timer.cancel();
+          paymentCompleted.value = true;
+          goToStep(CheckoutStep.confirmation);
+
+          // Clear cart after successful payment
+          await _cartController.clearCart();
+
+          Get.snackbar(
+            'Payment Successful!',
+            'Your order has been confirmed. Receipt: ${status['provider_ref'] ?? ''}',
+            snackPosition: SnackPosition.BOTTOM,
+            backgroundColor: AppColors.success,
+            colorText: Colors.white,
+            duration: const Duration(seconds: 10),
+          );
+        } else if (currentStatus == 'failed') {
+          timer.cancel();
+          final failureReason = status['failure_reason'] ?? 'Payment failed';
+          final canRetry = status['retry_allowed'] ?? false;
+
+          paymentError.value = failureReason;
+          paymentStatus.value = 'failed';
+
+          Get.snackbar(
+            'Payment Failed',
+            '$failureReason${canRetry ? ' - You can try again' : ''}',
+            snackPosition: SnackPosition.BOTTOM,
+            backgroundColor: Colors.red,
+            colorText: Colors.white,
+            duration: const Duration(seconds: 8),
+          );
+        } else if (attempts >= maxAttempts) {
+          timer.cancel();
+          paymentError.value =
+              'Payment is taking longer than expected. Please check your order status later.';
+
+          Get.snackbar(
+            'Payment Timeout',
+            'Payment is taking longer than expected. Please check your order status.',
+            snackPosition: SnackPosition.BOTTOM,
+            backgroundColor: Colors.orange,
+            colorText: Colors.white,
+          );
+        }
+      } catch (e) {
+        print('Error checking payment status: $e');
+        // Continue polling on error unless max attempts reached
+        if (attempts >= maxAttempts) {
+          timer.cancel();
+          paymentError.value =
+              'Unable to check payment status. Please contact support.';
+        }
+      }
+    });
+  }
+
+  // Payment countdown timer
+  void _startPaymentCountdown() {
+    Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (paymentTimeRemaining.value > 0) {
+        paymentTimeRemaining.value--;
+      } else {
+        timer.cancel();
+      }
+
+      // Stop countdown if payment is completed or failed
+      if (['completed', 'failed'].contains(paymentStatus.value)) {
+        timer.cancel();
+      }
+    });
+  }
+
+  // Utility methods
+  AddressModel createQuickAddress({
+    required String fullName,
+    required String phone,
+    required String address,
+    required String city,
+    String region = 'Dar es Salaam',
+  }) {
+    return AddressModel(
+      firstName: fullName.split(' ').first,
+      lastName: fullName.split(' ').length > 1
+          ? fullName.split(' ').skip(1).join(' ')
+          : '',
+      phone: formatPhoneNumber(phone),
+      addressLine1: address,
+      addressLine2: '',
+      city: city,
+      region: region,
+      postalCode: '',
+      country: 'Tanzania',
+    );
+  }
+
+  // Phone number validation
+  bool isValidPhoneNumber(String phone) {
+    String cleanPhone = phone.replaceAll(RegExp(r'[^0-9]'), '');
+    if (cleanPhone.startsWith('255')) {
+      return cleanPhone.length == 12;
+    } else if (cleanPhone.startsWith('0')) {
+      return cleanPhone.length == 10;
+    } else if (cleanPhone.length == 9) {
+      return true;
+    }
+    return false;
+  }
+
+  // Set payment details
+  void setPaymentDetails({
+    String? phone,
+    String? bank,
+    String? bankAccount,
+  }) {
+    if (phone != null) phoneNumber.value = phone;
+    if (bank != null) bankName.value = bank;
+    if (bankAccount != null) bankAccountNumber.value = bankAccount;
+  }
+
+  // Complete address and shipping step
+  void completeAddressAndShipping({
+    required String fullName,
+    required String phone,
+    required String address,
+    required String city,
+    String region = 'Dar es Salaam',
+    ShippingMethodModel? selectedShipping,
+  }) {
+    final quickAddress = createQuickAddress(
+      fullName: fullName,
+      phone: phone,
+      address: address,
+      city: city,
+      region: region,
+    );
+
+    setShippingAddress(quickAddress);
+    if (sameAsShipping.value) setBillingAddress(quickAddress);
+    if (selectedShipping != null) selectShippingMethod(selectedShipping);
+    goToStep(CheckoutStep.paymentAndReview);
+  }
+
+  // Complete payment and review step
+  Future<void> completePaymentAndReview() async {
+    try {
+      isLoading.value = true;
+      error.value = '';
+
+      await createOrder();
+      if (currentOrder.value == null) {
+        error.value = 'Failed to create order';
+        return;
+      }
+
+      goToStep(CheckoutStep.confirmation);
+
+      final selectedMethod = selectedPaymentMethod.value;
+      if (selectedMethod?.isMobilePayment == true) {
+        await processEnhancedMobilePayment();
+      } else if (selectedMethod?.isBankTransfer == true) {
+        await requestBankOTP();
+      } else if (selectedMethod?.isPayPal == true) {
+        await processPayPalPayment();
+      }
+    } catch (e) {
+      error.value = 'Failed to process payment: $e';
+    } finally {
+      isLoading.value = false;
+    }
+  }
+
+  // Enhanced mobile payment processing
+  Future<void> processEnhancedMobilePayment() async {
+    print(phoneNumber.value);
+    if (mobilePaymentPhoneNumber.value.isEmpty ||
+        !isValidPhoneNumber(mobilePaymentPhoneNumber.value)) {
+      error.value = 'Invalid phone number';
+      return;
+    }
+
+    try {
+      isProcessingPayment.value = true;
+      paymentStatus.value = 'processing';
+
+      // Get phone number for mobile payments
+      String? phoneNumber;
+      if (selectedPaymentMethod.value!.isMobilePayment) {
+        // Use mobile payment phone number if provided, otherwise fall back to shipping address
+        phoneNumber = mobilePaymentPhoneNumber.value.isNotEmpty
+            ? mobilePaymentPhoneNumber.value
+            : shippingAddress.value?.phone;
+
+        // Validate phone number for mobile payments
+        if (phoneNumber == null || phoneNumber.isEmpty) {
+          throw Exception(
+              'Phone number is required for mobile money payments. Please enter your mobile money phone number.');
+        }
+
+        // Ensure phone number is in correct format (starts with +255 for Tanzania)
+        if (!phoneNumber.startsWith('+')) {
+          if (phoneNumber.startsWith('0')) {
+            phoneNumber = '+255${phoneNumber.substring(1)}';
+          } else if (phoneNumber.startsWith('255')) {
+            phoneNumber = '+$phoneNumber';
+          } else {
+            phoneNumber = '+255$phoneNumber';
+          }
+        }
+
+        print('📱 Using phone number for mobile payment: $phoneNumber');
+      }
+
+      print('🚀 About to call initializePayment with:');
+      print('🚀 - orderId: ${currentOrder.value?.id ?? ''}');
+      print('🚀 - paymentMethod: ${selectedPaymentMethod.value!.toJson()}');
+      print('🚀 - phoneNumber: $phoneNumber');
+
+      final paymentResult = await _checkoutApiService.initializePayment(
+        orderId: currentOrder.value?.id ?? '',
+        paymentMethod: selectedPaymentMethod.value!,
+        phoneNumber: phoneNumber,
+      );
+
+      print('🎯 Payment result received: $paymentResult');
+
+      print('💳 Controller received payment result: $paymentResult');
+      print('💳 Payment result type: ${paymentResult.runtimeType}');
+
+      try {
+        if (paymentResult['success'] == true) {
+          _startPaymentCountdown();
+          _startEnhancedPaymentStatusPolling(paymentResult['payment_id']);
+        } else {
+          paymentStatus.value = 'failed';
+          error.value = paymentResult['message'] ?? 'Payment failed';
+        }
+      } catch (e) {
+        print('💳 Error accessing payment result: $e');
+        paymentStatus.value = 'failed';
+        error.value = 'Payment initialization failed';
+      }
+    } catch (e) {
+      paymentStatus.value = 'failed';
+      error.value = 'Payment processing failed: $e';
+    } finally {
+      isProcessingPayment.value = false;
+    }
+  }
+
+  // Request bank OTP
+  Future<void> requestBankOTP() async {
+    if (bankName.value.isEmpty || bankAccountNumber.value.isEmpty) {
+      error.value = 'Please provide bank details';
+      return;
+    }
+
+    try {
+      isProcessingPayment.value = true;
+      paymentStatus.value = 'otp_required';
+
+      await Future.delayed(const Duration(seconds: 2));
+
+      Get.snackbar(
+        'OTP Sent',
+        'Please check your phone for the OTP code',
+        snackPosition: SnackPosition.TOP,
+        backgroundColor: AppColors.success,
+        colorText: Colors.white,
+      );
+    } catch (e) {
+      paymentStatus.value = 'failed';
+      error.value = 'Failed to request OTP: $e';
+    } finally {
+      isProcessingPayment.value = false;
+    }
+  }
+
+  // Process bank payment with OTP
+  Future<void> processBankPaymentWithOTP() async {
+    void confirmOtp() async {
+      if (otpCode.value.isEmpty) {
+        error.value = 'Please enter OTP';
+        return;
+      }
+
+      try {
+        isProcessingPayment.value = true;
+        paymentStatus.value = 'processing';
+
+        await Future.delayed(const Duration(seconds: 3));
+
+        final success = otpCode.value != '000000';
+
+        if (success) {
+          paymentStatus.value = 'completed';
+          goToStep(CheckoutStep.confirmation);
+        } else {
+          paymentStatus.value = 'failed';
+          error.value = 'Invalid OTP or payment failed';
+        }
+      } catch (e) {
+        paymentStatus.value = 'failed';
+        error.value = 'Payment processing failed: $e';
+      } finally {
+        isProcessingPayment.value = false;
+      }
+    }
+  }
+
+  // Fetch user orders
+  Future<void> fetchUserOrders({String? status}) async {
+    try {
+      isLoadingOrders.value = true;
+      error.value = null;
+
+      final ordersData = await _checkoutApiService.getUserOrders(
+        status: status,
+        limit: 50,
+      );
+
+      userOrders.value =
+          List<Map<String, dynamic>>.from(ordersData['results'] ?? []);
+      print('📋 Fetched ${userOrders.length} orders');
+    } catch (e) {
+      error.value = 'Failed to fetch orders: $e';
+      print('❌ Error fetching orders: $e');
+    } finally {
+      isLoadingOrders.value = false;
+    }
+  }
+
+  // Determine which checkout step to navigate to based on order completion
+  Future<CheckoutStep> determineCheckoutStep(String orderId) async {
+    try {
+      final completionStatus =
+          await _checkoutApiService.getOrderCompletionStatus(orderId);
+
+      print('🔍 Order completion status: $completionStatus');
+
+      // If order is completed, go to confirmation
+      if (completionStatus['is_completed'] == true) {
+        return CheckoutStep.confirmation;
+      }
+
+      // If payment is missing or pending, go to payment step
+      if (!completionStatus['has_payment_method'] ||
+          completionStatus['payment_status'] == null ||
+          completionStatus['payment_status'] == 'pending') {
+        return CheckoutStep.paymentAndReview;
+      }
+
+      // If shipping address is missing, go to address step
+      if (!completionStatus['has_shipping_address']) {
+        return CheckoutStep.addressAndShipping;
+      }
+
+      // Default to confirmation if everything seems complete
+      return CheckoutStep.confirmation;
+    } catch (e) {
+      print('❌ Error determining checkout step: $e');
+      // Default to address step if we can't determine
+      return CheckoutStep.addressAndShipping;
+    }
+  }
+
+  // Resume checkout for an existing order
+  Future<void> resumeCheckoutForOrder(String orderId) async {
+    try {
+      isLoading.value = true;
+      error.value = null;
+
+      // Get the order details first
+      final orderDetails = await _checkoutApiService.getOrderDetails(orderId);
+      currentOrder.value = orderDetails;
+
+      // Determine which step to go to
+      final targetStep = await determineCheckoutStep(orderId);
+
+      // Navigate to the appropriate step
+      goToStep(targetStep);
+
+      Get.snackbar(
+        'Order Resumed',
+        'Continuing checkout for order ${orderDetails.orderNumber}',
+        backgroundColor: AppColors.primary,
+        colorText: Colors.white,
+      );
+    } catch (e) {
+      error.value = 'Failed to resume checkout: $e';
+      print('❌ Error resuming checkout: $e');
+    } finally {
+      isLoading.value = false;
+    }
+  }
+
+  // Get pending orders (orders that need completion)
+  Future<List<Map<String, dynamic>>> getPendingOrders() async {
+    await fetchUserOrders(status: 'pending');
+    return userOrders
+        .where((order) =>
+            order['status'] == 'pending' &&
+            (order['payment_status'] == null ||
+                order['payment_status'] == 'pending'))
+        .toList();
+  }
+
+  // Get payment method icon
+  IconData getPaymentMethodIcon(String method) {
+    switch (method.toLowerCase()) {
+      case 'mpesa':
+      case 'airtel_money':
+      case 'tigo_pesa':
+        return Iconsax.mobile;
+      case 'bank_transfer':
+      case 'bank':
+        return Iconsax.bank;
+      case 'paypal':
+        return Iconsax.global;
+      default:
+        return Iconsax.card;
+    }
+  }
+
+  // Format time remaining for display
+  String get formattedTimeRemaining {
+    final minutes = paymentTimeRemaining.value ~/ 60;
+    final seconds = paymentTimeRemaining.value % 60;
+    return '${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}';
   }
 
   @override

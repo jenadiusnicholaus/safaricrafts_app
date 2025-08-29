@@ -5,6 +5,7 @@ import 'package:iconsax/iconsax.dart';
 import '../home/home_view.dart';
 import '../categories/categories_view.dart';
 import '../cart/cart_view.dart';
+import '../orders/orders_view.dart';
 import '../profile/profile_view.dart';
 import '../../controllers/main_controller.dart';
 import '../../core/theme/app_colors.dart';
@@ -31,6 +32,7 @@ class MainView extends GetView<MainController> {
               HomeView(),
               CategoriesView(),
               CartView(),
+              OrdersView(),
               ProfileView(),
             ],
           )),
@@ -77,10 +79,17 @@ class MainView extends GetView<MainController> {
                       isCartIcon: true,
                     ),
                     _buildNavItem(
-                      icon: Iconsax.user,
-                      label: 'Profile',
+                      icon: Iconsax.box,
+                      label: 'Orders',
                       index: 3,
                       isSelected: mainController.currentIndex.value == 3,
+                      controller: mainController,
+                    ),
+                    _buildNavItem(
+                      icon: Iconsax.user,
+                      label: 'Profile',
+                      index: 4,
+                      isSelected: mainController.currentIndex.value == 4,
                       controller: mainController,
                     ),
                   ],

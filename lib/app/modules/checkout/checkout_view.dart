@@ -2,15 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:iconsax/iconsax.dart';
+
 import '../../controllers/checkout_controller.dart';
 import '../../core/theme/app_colors.dart';
 import 'widgets/checkout_stepper.dart';
 import 'widgets/shipping_address_step.dart';
-import 'widgets/shipping_method_step.dart';
-import 'widgets/billing_address_step.dart';
 import 'widgets/payment_method_step.dart';
-import 'widgets/order_review_step.dart';
-import 'widgets/payment_step.dart';
 import 'widgets/order_confirmation_step.dart';
 
 class CheckoutView extends GetView<CheckoutController> {
@@ -111,18 +108,10 @@ class CheckoutView extends GetView<CheckoutController> {
 
   Widget _buildCurrentStep() {
     switch (controller.currentStep.value) {
-      case CheckoutStep.shippingAddress:
+      case CheckoutStep.addressAndShipping:
         return ShippingAddressStep();
-      case CheckoutStep.shippingMethod:
-        return ShippingMethodStep();
-      case CheckoutStep.billingAddress:
-        return BillingAddressStep();
-      case CheckoutStep.paymentMethod:
+      case CheckoutStep.paymentAndReview:
         return PaymentMethodStep();
-      case CheckoutStep.orderReview:
-        return OrderReviewStep();
-      case CheckoutStep.payment:
-        return PaymentStep();
       case CheckoutStep.confirmation:
         return OrderConfirmationStep();
       default:

@@ -15,9 +15,9 @@ class CheckoutStepper extends GetView<CheckoutController> {
 
       return Column(
         children: [
-          // Step indicators
+          // Step indicators - Simplified to 3 steps
           Row(
-            children: List.generate(7, (index) {
+            children: List.generate(3, (index) {
               final isCompleted = index < currentStepIndex;
               final isCurrent = index == currentStepIndex;
               final isActive = isCompleted || isCurrent;
@@ -27,8 +27,8 @@ class CheckoutStepper extends GetView<CheckoutController> {
                   children: [
                     // Step circle
                     Container(
-                      width: 32.w,
-                      height: 32.h,
+                      width: 40.w,
+                      height: 40.h,
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
                         color: isCompleted
@@ -46,12 +46,12 @@ class CheckoutStepper extends GetView<CheckoutController> {
                             ? Icon(
                                 Icons.check,
                                 color: Colors.white,
-                                size: 16.sp,
+                                size: 20.sp,
                               )
                             : Text(
                                 '${index + 1}',
                                 style: TextStyle(
-                                  fontSize: 12.sp,
+                                  fontSize: 16.sp,
                                   fontWeight: FontWeight.w600,
                                   color:
                                       isActive ? Colors.white : AppColors.grey,
@@ -61,14 +61,14 @@ class CheckoutStepper extends GetView<CheckoutController> {
                     ),
 
                     // Connecting line (except for last step)
-                    if (index < 6)
+                    if (index < 2)
                       Expanded(
                         child: Container(
-                          height: 2.h,
+                          height: 3.h,
                           color: isCompleted
                               ? AppColors.primary
                               : AppColors.greyLight,
-                          margin: EdgeInsets.symmetric(horizontal: 4.w),
+                          margin: EdgeInsets.symmetric(horizontal: 8.w),
                         ),
                       ),
                   ],
@@ -77,18 +77,14 @@ class CheckoutStepper extends GetView<CheckoutController> {
             }),
           ),
 
-          SizedBox(height: 8.h),
+          SizedBox(height: 12.h),
 
-          // Step labels
+          // Step labels - Simplified to 3 steps
           Row(
             children: [
-              _buildStepLabel('Address', 0, currentStepIndex),
-              _buildStepLabel('Shipping', 1, currentStepIndex),
-              _buildStepLabel('Billing', 2, currentStepIndex),
-              _buildStepLabel('Payment', 3, currentStepIndex),
-              _buildStepLabel('Review', 4, currentStepIndex),
-              _buildStepLabel('Pay', 5, currentStepIndex),
-              _buildStepLabel('Done', 6, currentStepIndex),
+              _buildStepLabel('Address & Shipping', 0, currentStepIndex),
+              _buildStepLabel('Payment', 1, currentStepIndex),
+              _buildStepLabel('Complete', 2, currentStepIndex),
             ],
           ),
         ],

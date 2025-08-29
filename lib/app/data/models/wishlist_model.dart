@@ -13,7 +13,7 @@ class LikedArtwork {
 
   factory LikedArtwork.fromJson(Map<String, dynamic> json) {
     return LikedArtwork(
-      id: json['id'],
+      id: json['id'] is String ? int.parse(json['id']) : json['id'],
       artwork: ArtworkList.fromJson(json['artwork']),
       likedAt: DateTime.parse(json['liked_at']),
     );
@@ -43,7 +43,7 @@ class PaginatedLikedArtworkList {
 
   factory PaginatedLikedArtworkList.fromJson(Map<String, dynamic> json) {
     return PaginatedLikedArtworkList(
-      count: json['count'],
+      count: json['count'] is String ? int.parse(json['count']) : json['count'],
       next: json['next'],
       previous: json['previous'],
       results: (json['results'] as List<dynamic>)

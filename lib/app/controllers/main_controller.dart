@@ -1,5 +1,6 @@
 import 'package:get/get.dart';
 import 'cart_controller.dart';
+import 'orders_controller.dart';
 
 class MainController extends GetxController {
   final RxInt currentIndex = 0.obs;
@@ -9,6 +10,7 @@ class MainController extends GetxController {
   void onInit() {
     super.onInit();
     _setupCartListener();
+    _initializeControllers();
   }
 
   @override
@@ -65,5 +67,13 @@ class MainController extends GetxController {
   // Method to manually refresh cart count
   void refreshCartCount() {
     _updateCartCount();
+  }
+
+  // Initialize controllers needed for bottom navigation tabs
+  void _initializeControllers() {
+    // Initialize OrdersController for the orders tab
+    if (!Get.isRegistered<OrdersController>()) {
+      Get.put<OrdersController>(OrdersController());
+    }
   }
 }

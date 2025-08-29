@@ -203,7 +203,7 @@ class OrderConfirmationStep extends GetView<CheckoutController> {
               'Total Amount', '${order.totalAmount.toStringAsFixed(0)} TSh'),
           _buildDetailRow('Payment Method',
               controller.selectedPaymentMethod.value?.name ?? 'N/A'),
-          _buildDetailRow('Status', order.status ?? 'Unknown'),
+          _buildDetailRow('Status', order.status?.toString().split('.').last ?? 'Unknown'),
 
           SizedBox(height: 16.h),
 

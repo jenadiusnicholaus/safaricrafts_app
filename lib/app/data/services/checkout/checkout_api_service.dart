@@ -5,6 +5,7 @@ import '../../models/checkout/order_model.dart';
 import '../../models/checkout/address_model.dart';
 import '../api_service.dart';
 import '../../../core/constants/api_constants.dart';
+import 'package:dio/dio.dart' as dio;
 import 'package:get/get.dart';
 import '../../../controllers/cart_controller.dart';
 
@@ -109,9 +110,8 @@ class CheckoutApiService {
       final cartItems = cartController.cart.value?.items ?? [];
 
       // Defensive: ensure cartItems is a List and not a Map
-      if (cartItems is! List) {
-        throw Exception(
-            'cartItems is not a List. Type: \\${cartItems.runtimeType}');
+      if (cartItems.isEmpty) {
+        throw Exception('Cart is empty');
       }
 
       final items = cartItems
@@ -183,19 +183,43 @@ class CheckoutApiService {
   Future<Map<String, dynamic>> initializePayment({
     required String orderId,
     required PaymentMethodModel paymentMethod,
+    String? phoneNumber,
     String? returnUrl,
     String? cancelUrl,
   }) async {
     try {
       print('💳 Initializing payment...');
+      print('💳 Payment method object: $paymentMethod');
+      print('💳 Payment method toJson: ${paymentMethod.toJson()}');
+      print('💳 Payment method type: ${paymentMethod.runtimeType}');
+      print('💳 Phone number provided: $phoneNumber');
+      print('💳 Is mobile payment: ${paymentMethod.isMobilePayment}');
+
+      final paymentMethodJson = paymentMethod.toJson();
+      print('💳 Payment method JSON type: ${paymentMethodJson.runtimeType}');
+      print('💳 Payment method JSON content: $paymentMethodJson');
 
       Map<String, dynamic> data = {
         'order_id': orderId,
-        'payment_method_id': paymentMethod.method,
+        'payment_method': paymentMethodJson,
       };
+
+      // Add phone number for mobile money payments
+      if (paymentMethod.isMobilePayment && phoneNumber != null) {
+        data['phone_number'] = phoneNumber;
+        print('💳 Added phone number to request: $phoneNumber');
+      } else {
+        print('💳 Phone number not added - isMobile: ${paymentMethod.isMobilePayment}, phone: $phoneNumber');
+      }
+      
+      print('💳 Full request data: $data');
+      print('💳 Data types: ${data.map((k, v) => MapEntry(k, '${v.runtimeType}'))}');
 
       if (returnUrl != null) data['return_url'] = returnUrl;
       if (cancelUrl != null) data['cancel_url'] = cancelUrl;
+
+      print('💳 Making API call to: ${ApiConstants.initializePayment}');
+      print('💳 Request payload: $data');
 
       final response = await _apiService.post(
         ApiConstants.initializePayment,
@@ -203,15 +227,44 @@ class CheckoutApiService {
       );
 
       print('💳 Payment initialization response: ${response.data}');
+      print('💳 Response status code: ${response.statusCode}');
+      print('💳 Response data type: ${response.data.runtimeType}');
 
       if (response.statusCode == 200 && response.data != null) {
-        return response.data;
+        // Ensure we return a proper Map<String, dynamic>
+        if (response.data is Map<String, dynamic>) {
+          return response.data as Map<String, dynamic>;
+        } else {
+          print('💳 Converting response data to Map<String, dynamic>');
+          return Map<String, dynamic>.from(response.data);
+        }
       } else {
         throw Exception(
             'Failed to initialize payment: ${response.statusMessage}');
       }
     } catch (e) {
       print('❌ Error initializing payment: $e');
+      print('❌ Error type: ${e.runtimeType}');
+      
+      // Handle DioException specifically
+      if (e is dio.DioException) {
+        print('💳 DioException status code: ${e.response?.statusCode}');
+        print('💳 DioException response data: ${e.response?.data}');
+        
+        // Check for existing payment error
+        if (e.response?.statusCode == 400 && 
+            e.response?.data != null &&
+            e.response!.data.toString().contains('Payment already exists')) {
+          print('💳 Payment already exists, treating as success');
+          return {
+            'success': true,
+            'message': 'Payment already exists',
+            'status': 'pending',
+            'payment_id': 'existing',
+          };
+        }
+      }
+      
       throw Exception('Failed to initialize payment: $e');
     }
   }
@@ -306,15 +359,13 @@ class CheckoutApiService {
     String? status,
     int limit = 20,
     int offset = 0,
-    String ordering = '-created_at',
   }) async {
     try {
       print('📋 Fetching user orders...');
 
-      Map<String, String> queryParams = {
-        'limit': limit.toString(),
-        'offset': offset.toString(),
-        'ordering': ordering,
+      final queryParams = <String, dynamic>{
+        'limit': limit,
+        'offset': offset,
       };
 
       if (status != null) {
@@ -322,20 +373,47 @@ class CheckoutApiService {
       }
 
       final response = await _apiService.get(
-        ApiConstants.getUserOrders,
+        ApiConstants.orders,
         queryParameters: queryParams,
       );
 
-      print('📋 User orders response: ${response.data}');
-
-      if (response.statusCode == 200 && response.data != null) {
+      if (response.statusCode == 200) {
+        print('📋 Orders fetched successfully: ${response.data['count']} orders');
         return response.data;
       } else {
-        throw Exception('Failed to load orders: ${response.statusMessage}');
+        throw Exception('Failed to fetch orders: ${response.statusMessage}');
       }
     } catch (e) {
-      print('❌ Error fetching user orders: $e');
-      throw Exception('Failed to load orders: $e');
+      print('❌ Error fetching orders: $e');
+      throw Exception('Failed to fetch orders: $e');
+    }
+  }
+
+  // Get specific order details to determine completion status
+  Future<Map<String, dynamic>> getOrderCompletionStatus(String orderId) async {
+    try {
+      print('🔍 Checking order completion status: $orderId');
+
+      final response = await _apiService.get('${ApiConstants.orders}$orderId/');
+
+      if (response.statusCode == 200) {
+        final orderData = response.data;
+        print('📄 Order data: $orderData');
+        
+        return {
+          'has_shipping_address': orderData['shipping_address'] != null,
+          'has_payment_method': orderData['payment_status'] != null && orderData['payment_status'] != 'pending',
+          'is_completed': orderData['status'] == 'completed',
+          'payment_status': orderData['payment_status'],
+          'shipment_status': orderData['shipment_status'],
+          'order': orderData,
+        };
+      } else {
+        throw Exception('Failed to fetch order details: ${response.statusMessage}');
+      }
+    } catch (e) {
+      print('❌ Error checking order completion: $e');
+      throw Exception('Failed to check order completion: $e');
     }
   }
 }

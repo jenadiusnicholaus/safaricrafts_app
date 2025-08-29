@@ -17,6 +17,8 @@ import '../modules/wishlist/wishlist_view.dart';
 import '../modules/test/navigation_test_view.dart';
 import '../modules/checkout/new_checkout_view.dart';
 import '../modules/checkout/checkout_binding.dart';
+import '../modules/orders/orders_view.dart';
+import '../controllers/orders_controller.dart';
 
 // Placeholder views for missing modules
 class PlaceholderView extends StatelessWidget {
@@ -185,7 +187,10 @@ class AppPages {
     // Order Routes
     GetPage(
       name: AppRoutes.orders,
-      page: () => const PlaceholderView(title: 'My Orders'),
+      page: () => const OrdersView(),
+      binding: BindingsBuilder(() {
+        Get.lazyPut<OrdersController>(() => OrdersController());
+      }),
     ),
     GetPage(
       name: AppRoutes.orderDetails,

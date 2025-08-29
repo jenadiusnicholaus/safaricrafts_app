@@ -5,12 +5,8 @@ import 'package:iconsax/iconsax.dart';
 import '../../controllers/checkout_controller.dart';
 import '../../core/theme/app_colors.dart';
 import 'widgets/checkout_stepper.dart';
-import 'widgets/shipping_address_step.dart';
-import 'widgets/shipping_method_step.dart';
-import 'widgets/billing_address_step.dart';
-import 'widgets/payment_method_step.dart';
-import 'widgets/order_review_step.dart';
-import 'widgets/payment_step.dart';
+import 'widgets/quick_address_step.dart';
+import 'widgets/enhanced_payment_method_step.dart';
 import 'widgets/order_confirmation_step.dart';
 
 class NewCheckoutView extends GetView<CheckoutController> {
@@ -111,22 +107,14 @@ class NewCheckoutView extends GetView<CheckoutController> {
 
   Widget _buildStepContent(CheckoutStep step) {
     switch (step) {
-      case CheckoutStep.shippingAddress:
-        return ShippingAddressStep();
-      case CheckoutStep.shippingMethod:
-        return const ShippingMethodStep();
-      case CheckoutStep.billingAddress:
-        return BillingAddressStep();
-      case CheckoutStep.paymentMethod:
-        return const PaymentMethodStep();
-      case CheckoutStep.orderReview:
-        return const OrderReviewStep();
-      case CheckoutStep.payment:
-        return const PaymentStep();
+      case CheckoutStep.addressAndShipping:
+        return QuickAddressStep();
+      case CheckoutStep.paymentAndReview:
+        return EnhancedPaymentMethodStep();
       case CheckoutStep.confirmation:
         return const OrderConfirmationStep();
       default:
-        return ShippingAddressStep();
+        return QuickAddressStep();
     }
   }
 }
